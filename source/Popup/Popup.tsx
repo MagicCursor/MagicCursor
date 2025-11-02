@@ -225,34 +225,6 @@ const Popup: React.FC = () => {
             </div>
           </div>
 
-          <div className="settings-section">
-            <h3>Effects</h3>
-            <div className="setting-item checkbox">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={settings.shading}
-                  onChange={(e): void =>
-                    handleChange("shading", e.target.checked)
-                  }
-                />
-                <span>3D Shading</span>
-              </label>
-            </div>
-            <div className="setting-item checkbox">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={settings.transparent}
-                  onChange={(e): void =>
-                    handleChange("transparent", e.target.checked)
-                  }
-                />
-                <span>Transparent Background</span>
-              </label>
-            </div>
-          </div>
-
           <div className="settings-actions">
             <button type="button" className="btn-reset" onClick={handleReset}>
               Reset Defaults
