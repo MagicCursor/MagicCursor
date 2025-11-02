@@ -43,48 +43,174 @@ Magic Cursor is a production-ready browser extension that adds a mesmerizing, ph
 
 ### For Developers
 
-#### Prerequisites
-- Node.js 10+ and npm or yarn
-- Git
+#### System Requirements
 
-#### Setup
+**Operating System:**
+- Windows 10/11
+- macOS 10.15+
+- Linux (Ubuntu 20.04+, Fedora 35+, or equivalent)
+
+**Required Software:**
+- **Node.js**: Version 10.0.0 or higher (recommended: 18.x LTS or 20.x LTS)
+  - Download from: https://nodejs.org/
+  - Verify installation: `node --version`
+- **Yarn**: Version 1.0.0 or higher (recommended: 1.22.x)
+  - Install via npm: `npm install -g yarn`
+  - Verify installation: `yarn --version`
+- **Git**: Latest version
+  - Download from: https://git-scm.com/
+  - Verify installation: `git --version`
+
+**Build Environment:**
+- Minimum 2GB RAM available
+- 500MB free disk space
+- Internet connection (for initial dependency download)
+
+#### Installation Instructions
+
+**1. Install Node.js**
+```bash
+# Windows: Download installer from https://nodejs.org/
+# macOS (using Homebrew):
+brew install node
+
+# Linux (Ubuntu/Debian):
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v10.0.0 or higher
+npm --version   # Should be included with Node.js
+```
+
+**2. Install Yarn**
+```bash
+# Using npm (cross-platform):
+npm install -g yarn
+
+# macOS (using Homebrew):
+brew install yarn
+
+# Verify installation
+yarn --version  # Should show 1.0.0 or higher
+```
+
+**3. Clone and Setup**
 ```bash
 # Clone the repository
 git clone https://github.com/magic-cursor/magic-cursor.git
 cd magic-cursor
 
-# Install dependencies
-npm install
-# or
-yarn
+# Install all dependencies (this may take 2-5 minutes)
+yarn install
 ```
 
-#### Development
+#### Quick Build (Automated Scripts)
+
+For convenience, platform-specific build scripts are provided:
+
+**Windows:**
+```cmd
+build.bat
+```
+Double-click `build.bat` or run from Command Prompt. The script will:
+- Check Node.js and Yarn installation
+- Install dependencies if needed
+- Build for all browsers
+- Display output locations
+
+**macOS/Linux:**
 ```bash
-# Chrome (with hot reload)
-npm run dev:chrome
-
-# Firefox (with hot reload)
-npm run dev:firefox
-
-# Opera (with hot reload)
-npm run dev:opera
+chmod +x build.sh
+./build.sh
 ```
+The script will:
+- Verify system requirements
+- Install dependencies if needed
+- Build for all browsers
+- Show colored output with build status
 
-Then load the extension from `extension/<browser>/` directory.
+#### Manual Build Scripts
 
-#### Production Build
+**Development Mode (with hot reload):**
 ```bash
-# Build for specific browser
-npm run build:chrome
-npm run build:firefox
-npm run build:opera
+# Chrome - builds to extension/chrome/ with auto-reload on changes
+yarn dev:chrome
 
-# Build for all browsers
-npm run build
+# Firefox - builds to extension/firefox/ with auto-reload on changes
+yarn dev:firefox
+
+# Opera - builds to extension/opera/ with auto-reload on changes
+yarn dev:opera
 ```
 
-Output will be in `extension/<browser>/` and packaged as `extension/<browser>.zip`
+**Production Build:**
+```bash
+# Build for Chrome only
+yarn build:chrome
+# Output: extension/chrome/ and extension/chrome.zip
+
+# Build for Firefox only
+yarn build:firefox
+# Output: extension/firefox/ and extension/firefox.xpi
+
+# Build for Opera only
+yarn build:opera
+# Output: extension/opera/ and extension/opera.crx
+
+# Build for ALL browsers at once
+yarn build
+# Runs all three builds sequentially
+```
+
+**Build Process Steps:**
+Each build script automatically performs:
+1. TypeScript compilation and type checking
+2. React/JSX transformation via Babel
+3. SCSS to CSS compilation with autoprefixer
+4. Code bundling and tree-shaking with Webpack
+5. Minification (production only)
+6. Manifest generation for target browser
+7. Asset copying and optimization
+8. Archive creation (.zip, .xpi, or .crx)
+
+**Loading the Extension:**
+
+*Chrome/Edge/Brave:*
+1. Open `chrome://extensions`
+2. Enable "Developer mode" (top right toggle)
+3. Click "Load unpacked"
+4. Select `extension/chrome/` folder
+
+*Firefox:*
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click "Load Temporary Add-on"
+3. Select any file in `extension/firefox/` folder
+   - Or install the `.xpi` file from `about:addons`
+
+*Opera:*
+1. Open `opera://extensions`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select `extension/opera/` folder
+
+#### Troubleshooting Build Issues
+
+**"command not found: yarn"**
+- Install Yarn: `npm install -g yarn`
+
+**"Node version too old"**
+- Update Node.js to version 10+ from https://nodejs.org/
+
+**Build fails with memory errors:**
+- Increase Node.js memory: `export NODE_OPTIONS="--max-old-space-size=4096"`
+
+**Port 9090 already in use (dev mode):**
+- Kill the process using port 9090 or change port in `webpack.config.js`
+
+**Dependencies installation fails:**
+- Clear cache: `yarn cache clean`
+- Delete `node_modules` and `yarn.lock`, then run `yarn install` again
 
 ## 🎛️ Customization
 
