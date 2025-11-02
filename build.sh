@@ -59,52 +59,115 @@ if [ ! -d "node_modules" ]; then
     echo ""
 fi
 
-# Build for all browsers
-echo "Building extension for all browsers..."
+# Ask user which browser(s) to build for
+echo "Select browser(s) to build:"
+echo "  1) Chrome"
+echo "  2) Firefox"
+echo "  3) Opera"
+echo "  4) All browsers"
+echo ""
+read -p "Enter your choice (1-4): " choice
 echo ""
 
-echo -e "${YELLOW}[1/3] Building for Chrome...${NC}"
-yarn build:chrome
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Chrome build completed${NC}"
-else
-    echo -e "${RED}✗ Chrome build failed${NC}"
-    exit 1
-fi
-echo ""
+BUILD_CHROME=false
+BUILD_FIREFOX=false
+BUILD_OPERA=false
 
-echo -e "${YELLOW}[2/3] Building for Firefox...${NC}"
-yarn build:firefox
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Firefox build completed${NC}"
-else
-    echo -e "${RED}✗ Firefox build failed${NC}"
-    exit 1
-fi
-echo ""
+case $choice in
+    1)
+        BUILD_CHROME=true
+        ;;
+    2)
+        BUILD_FIREFOX=true
+        ;;
+    3)
+        BUILD_OPERA=true
+        ;;
+    4)
+        BUILD_CHROME=true
+        BUILD_FIREFOX=true
+        BUILD_OPERA=true
+        ;;
+    *)
+        echo -e "${RED}Invalid choice. Exiting.${NC}"
+        exit 1
+        ;;
+esac
 
-echo -e "${YELLOW}[3/3] Building for Opera...${NC}"
-yarn build:opera
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓ Opera build completed${NC}"
-else
-    echo -e "${RED}✗ Opera build failed${NC}"
-    exit 1
+# Build selected browsers
+BUILD_COUNT=0
+CURRENT_BUILD=0
+
+if [ "$BUILD_CHROME" = true ]; then ((BUILD_COUNT++)); fi
+if [ "$BUILD_FIREFOX" = true ]; then ((BUILD_COUNT++)); fi
+if [ "$BUILD_OPERA" = true ]; then ((BUILD_COUNT++)); fi
+
+if [ "$BUILD_CHROME" = true ]; then
+    ((CURRENT_BUILD++))
+    echo -e "${YELLOW}[$CURRENT_BUILD/$BUILD_COUNT] Building for Chrome...${NC}"
+    yarn build:chrome
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Chrome build completed${NC}"
+    else
+        echo -e "${RED}✗ Chrome build failed${NC}"
+        exit 1
+    fi
+    echo ""
 fi
-echo ""
+
+if [ "$BUILD_FIREFOX" = true ]; then
+    ((CURRENT_BUILD++))
+    echo -e "${YELLOW}[$CURRENT_BUILD/$BUILD_COUNT] Building for Firefox...${NC}"
+    yarn build:firefox
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Firefox build completed${NC}"
+    else
+        echo -e "${RED}✗ Firefox build failed${NC}"
+        exit 1
+    fi
+    echo ""
+fi
+
+if [ "$BUILD_OPERA" = true ]; then
+    ((CURRENT_BUILD++))
+    echo -e "${YELLOW}[$CURRENT_BUILD/$BUILD_COUNT] Building for Opera...${NC}"
+    yarn build:opera
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Opera build completed${NC}"
+    else
+        echo -e "${RED}✗ Opera build failed${NC}"
+        exit 1
+    fi
+    echo ""
+fi
 
 # Summary
 echo "=================================="
 echo -e "${GREEN}Build completed successfully!${NC}"
 echo "=================================="
 echo ""
-echo "Output files:"
-echo "  Chrome: extension/chrome.zip"
-echo "  Firefox: extension/firefox.xpi"
-echo "  Opera: extension/opera.crx"
-echo ""
-echo "To load the extension:"
-echo "  Chrome: chrome://extensions → Load unpacked → extension/chrome/"
-echo "  Firefox: about:debugging → Load Temporary Add-on → extension/firefox/"
-echo "  Opera: opera://extensions → Load unpacked → extension/opera/"
-echo ""
+
+if [ "$BUILD_CHROME" = true ] || [ "$BUILD_FIREFOX" = true ] || [ "$BUILD_OPERA" = true ]; then
+    echo "Output files:"
+    if [ "$BUILD_CHROME" = true ]; then
+        echo "  Chrome: extension/chrome.zip"
+    fi
+    if [ "$BUILD_FIREFOX" = true ]; then
+        echo "  Firefox: extension/firefox.xpi"
+    fi
+    if [ "$BUILD_OPERA" = true ]; then
+        echo "  Opera: extension/opera.crx"
+    fi
+    echo ""
+    echo "To load the extension:"
+    if [ "$BUILD_CHROME" = true ]; then
+        echo "  Chrome: chrome://extensions → Load unpacked → extension/chrome/"
+    fi
+    if [ "$BUILD_FIREFOX" = true ]; then
+        echo "  Firefox: about:debugging → Load Temporary Add-on → extension/firefox/"
+    fi
+    if [ "$BUILD_OPERA" = true ]; then
+        echo "  Opera: opera://extensions → Load unpacked → extension/opera/"
+    fi
+    echo ""
+fi
