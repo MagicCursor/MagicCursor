@@ -21,20 +21,19 @@ const Options: React.FC = () => {
     key: keyof CursorSettings,
     value: number | boolean
   ): void => {
-    setSettings((prev) => ({...prev, [key]: value}));
-  };
-
-  const handleSave = async (): Promise<void> => {
-    await saveSettings(settings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const newSettings = {...settings, [key]: value};
+    setSettings(newSettings);
+    saveSettings(newSettings).then(() => {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    });
   };
 
   const handleReset = async (): Promise<void> => {
     setSettings(DEFAULT_SETTINGS);
     await saveSettings(DEFAULT_SETTINGS);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   return (
@@ -42,6 +41,9 @@ const Options: React.FC = () => {
       <header>
         <h1>✨ Magic Cursor Settings</h1>
         <p>Customize your fluid mouse trail experience</p>
+        <p className="auto-save-note">
+          💾 Changes are saved automatically as you adjust them
+        </p>
       </header>
 
       <div className="settings-grid">
@@ -268,10 +270,9 @@ const Options: React.FC = () => {
         </section>
       </div>
 
+      {saved && <div className="save-indicator">✓ Auto-saved!</div>}
+
       <div className="actions">
-        <button type="button" className="btn-primary" onClick={handleSave}>
-          {saved ? '✓ Saved!' : 'Save Settings'}
-        </button>
         <button type="button" className="btn-secondary" onClick={handleReset}>
           Reset to Defaults
         </button>
