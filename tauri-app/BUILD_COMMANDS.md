@@ -2,11 +2,11 @@
 
 ## Platform-Specific Builds
 
-### Windows (MSI)
+### Windows (MSI + EXE)
 ```bash
 yarn run tauri:windows
 ```
-Outputs: `.msi` (Windows Installer)
+Outputs: `.msi` (Windows Installer) + `.exe` (Portable)
 
 ### Linux (DEB, AppImage)
 ```bash
@@ -67,7 +67,8 @@ Run the requirements checker to see what tools you have installed:
 
 ## Output Locations
 
-- **Windows builds**: `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/`
+- **Windows MSI**: `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/`
+- **Windows EXE**: `src-tauri/target/release/Magic Cursor.exe`
 - **Linux builds**: `src-tauri/target/release/bundle/`
 - **Android builds**: `src-tauri/gen/android/app/build/outputs/apk/`
 - **iOS builds**: `src-tauri/gen/ios/build/`

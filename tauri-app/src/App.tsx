@@ -1,28 +1,24 @@
-import {useEffect, useState} from 'react';
-import {listen} from '@tauri-apps/api/event';
-import {invoke} from '@tauri-apps/api/tauri';
-import {platform} from '@tauri-apps/api/os';
+import { useEffect, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/tauri';
+import { platform } from '@tauri-apps/api/os';
 import MagicMouse from './components/MagicMouse';
-import Settings, {FluidConfig} from './components/Settings';
+import Settings, { FluidConfig } from './components/Settings';
 import ClickThroughIndicator from './components/ClickThroughIndicator';
 import Welcome from './components/Welcome';
 import AndroidHome from './components/AndroidHome';
-import ControlPanel, {
-  ColorPreset,
-  COLOR_PRESETS,
-} from './components/ControlPanel';
-import ColorCustomizer, {ColorTheme} from './components/ColorCustomizer';
+import ThemeCustomizer from './components/ThemeCustomizer';
 
 function App(): JSX.Element {
   const [isAndroid, setIsAndroid] = useState(false);
   const [showAndroidHome, setShowAndroidHome] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isControlPanelOpen, setIsControlPanelOpen] = useState(false);
-  const [isColorCustomizerOpen, setIsColorCustomizerOpen] = useState(false);
+  const [isThemeCustomizerOpen, setIsThemeCustomizerOpen] = useState(false);
   const [wasClickThroughEnabled, setWasClickThroughEnabled] = useState(true);
-  const [colorPreset, setColorPreset] = useState<ColorPreset>(COLOR_PRESETS[0]);
-  const [customTheme, setCustomTheme] = useState<ColorTheme | null>(null);
+  const [colorHueRange, setColorHueRange] = useState<[number, number]>([0, 1]);
+  const [colorSaturation, setColorSaturation] = useState(1.0);
+  const [colorBrightness, setColorBrightness] = useState(1.0);
   const [config, setConfig] = useState<FluidConfig>({
     PRESSURE: 0.1,
     CURL: 3,
@@ -54,7 +50,7 @@ function App(): JSX.Element {
           localStorage.setItem('hasSeenWelcome', 'true');
 
           // Disable click-through during welcome screen
-          invoke('set_click_through', {enabled: false}).catch(console.error);
+          invoke('set_click_through', { enabled: false }).catch(console.error);
         }
       })
       .catch(console.error);
@@ -69,25 +65,32 @@ function App(): JSX.Element {
       }
     }
 
-    // Load saved color preset
-    const savedPreset = localStorage.getItem('colorPreset');
-    if (savedPreset) {
+    // Load saved color settings
+    const savedHueRange = localStorage.getItem('colorHueRange');
+    const savedSaturation = localStorage.getItem('colorSaturation');
+    const savedBrightness = localStorage.getItem('colorBrightness');
+
+    if (savedHueRange) {
       try {
-        const preset = JSON.parse(savedPreset);
-        setColorPreset(preset);
+        setColorHueRange(JSON.parse(savedHueRange));
       } catch (e) {
-        console.error('Failed to load color preset:', e);
+        console.error('Failed to load hue range:', e);
       }
     }
 
-    // Load saved custom theme
-    const savedTheme = localStorage.getItem('customTheme');
-    if (savedTheme) {
+    if (savedSaturation) {
       try {
-        const theme = JSON.parse(savedTheme);
-        setCustomTheme(theme);
+        setColorSaturation(parseFloat(savedSaturation));
       } catch (e) {
-        console.error('Failed to load custom theme:', e);
+        console.error('Failed to load saturation:', e);
+      }
+    }
+
+    if (savedBrightness) {
+      try {
+        setColorBrightness(parseFloat(savedBrightness));
+      } catch (e) {
+        console.error('Failed to load brightness:', e);
       }
     }
 
@@ -100,7 +103,7 @@ function App(): JSX.Element {
 
         // Disable click-through so user can interact with settings
         if (currentState) {
-          await invoke('set_click_through', {enabled: false});
+          await invoke('set_click_through', { enabled: false });
         }
       } catch (e) {
         console.error('Failed to get/set click-through state:', e);
@@ -109,42 +112,37 @@ function App(): JSX.Element {
       setIsSettingsOpen(true);
     });
 
-    // Listen for color presets open event from tray
-    const unlistenColorPresets = listen('open-color-presets', async () => {
-      // Get current click-through state before opening control panel
+    // Listen for theme customizer open event from tray
+    const unlistenThemeCustomizer = listen('open-theme-customizer', async () => {
       try {
         const currentState = await invoke<boolean>('get_click_through_state');
         setWasClickThroughEnabled(currentState);
 
-        // Disable click-through so user can interact with control panel
         if (currentState) {
-          await invoke('set_click_through', {enabled: false});
+          await invoke('set_click_through', { enabled: false });
         }
       } catch (e) {
         console.error('Failed to get/set click-through state:', e);
       }
 
-      setIsControlPanelOpen(true);
+      setIsThemeCustomizerOpen(true);
     });
 
-    // Listen for theme customizer open event from tray
-    const unlistenThemeCustomizer = listen(
-      'open-theme-customizer',
-      async () => {
-        try {
-          const currentState = await invoke<boolean>('get_click_through_state');
-          setWasClickThroughEnabled(currentState);
+    // Also listen for old color presets event for backwards compatibility
+    const unlistenColorPresets = listen('open-color-presets', async () => {
+      try {
+        const currentState = await invoke<boolean>('get_click_through_state');
+        setWasClickThroughEnabled(currentState);
 
-          if (currentState) {
-            await invoke('set_click_through', {enabled: false});
-          }
-        } catch (e) {
-          console.error('Failed to get/set click-through state:', e);
+        if (currentState) {
+          await invoke('set_click_through', { enabled: false });
         }
-
-        setIsColorCustomizerOpen(true);
+      } catch (e) {
+        console.error('Failed to get/set click-through state:', e);
       }
-    );
+
+      setIsThemeCustomizerOpen(true);
+    });
 
     // Listen for welcome open event from tray
     const unlistenWelcome = listen('open-welcome', async () => {
@@ -155,7 +153,7 @@ function App(): JSX.Element {
 
         // Disable click-through so user can interact with welcome
         if (currentState) {
-          await invoke('set_click_through', {enabled: false});
+          await invoke('set_click_through', { enabled: false });
         }
       } catch (e) {
         console.error('Failed to get/set click-through state:', e);
@@ -194,7 +192,7 @@ function App(): JSX.Element {
     // Re-enable click-through if it was enabled before opening settings
     if (wasClickThroughEnabled) {
       try {
-        await invoke('set_click_through', {enabled: true});
+        await invoke('set_click_through', { enabled: true });
       } catch (e) {
         console.error('Failed to restore click-through state:', e);
       }
@@ -206,25 +204,7 @@ function App(): JSX.Element {
     // Re-enable click-through if it was enabled before opening welcome
     if (wasClickThroughEnabled) {
       try {
-        await invoke('set_click_through', {enabled: true});
-      } catch (e) {
-        console.error('Failed to restore click-through state:', e);
-      }
-    }
-  };
-
-  const handlePresetChange = (preset: ColorPreset): void => {
-    setColorPreset(preset);
-    localStorage.setItem('colorPreset', JSON.stringify(preset));
-  };
-
-  const handleControlPanelClose = async (): Promise<void> => {
-    setIsControlPanelOpen(false);
-
-    // Re-enable click-through if it was enabled before opening control panel
-    if (wasClickThroughEnabled) {
-      try {
-        await invoke('set_click_through', {enabled: true});
+        await invoke('set_click_through', { enabled: true });
       } catch (e) {
         console.error('Failed to restore click-through state:', e);
       }
@@ -235,61 +215,37 @@ function App(): JSX.Element {
     setShowAndroidHome(false);
   };
 
-  const handleThemeSave = (theme: ColorTheme): void => {
-    setCustomTheme(theme);
-    localStorage.setItem('customTheme', JSON.stringify(theme));
+  const handleColorChange = (
+    hueRange: [number, number],
+    saturation: number,
+    brightness: number
+  ): void => {
+    setColorHueRange(hueRange);
+    setColorSaturation(saturation);
+    setColorBrightness(brightness);
+
+    // Save to localStorage
+    localStorage.setItem('colorHueRange', JSON.stringify(hueRange));
+    localStorage.setItem('colorSaturation', saturation.toString());
+    localStorage.setItem('colorBrightness', brightness.toString());
   };
 
-  const handleColorCustomizerClose = async (): Promise<void> => {
-    setIsColorCustomizerOpen(false);
+  const handleThemeCustomizerClose = async (): Promise<void> => {
+    setIsThemeCustomizerOpen(false);
 
     if (wasClickThroughEnabled) {
       try {
-        await invoke('set_click_through', {enabled: true});
+        await invoke('set_click_through', { enabled: true });
       } catch (e) {
         console.error('Failed to restore click-through state:', e);
       }
     }
   };
 
-  // Get current color settings (from custom theme or preset)
-  const getCurrentColorSettings = () => {
-    if (customTheme && customTheme.colors.length > 0) {
-      // Use custom theme
-      const hues = customTheme.colors.map((c) => c.hue);
-      const avgSaturation =
-        customTheme.colors.reduce((sum, c) => sum + c.saturation, 0) /
-        customTheme.colors.length;
-      const avgBrightness =
-        customTheme.colors.reduce((sum, c) => sum + c.brightness, 0) /
-        customTheme.colors.length;
-
-      return {
-        colorHueRange: [Math.min(...hues), Math.max(...hues)] as [
-          number,
-          number,
-        ],
-        colorSaturation: avgSaturation,
-        colorBrightness: avgBrightness,
-      };
-    }
-
-    // Use preset
-    return {
-      colorHueRange: colorPreset.hueRange,
-      colorSaturation: colorPreset.saturation,
-      colorBrightness: colorPreset.brightness,
-    };
-  };
-
-  const colorSettings = getCurrentColorSettings();
-
   // Android UI
   if (isAndroid) {
     if (showAndroidHome) {
-      return (
-        <AndroidHome onPermissionGranted={handleAndroidPermissionGranted} />
-      );
+      return <AndroidHome onPermissionGranted={handleAndroidPermissionGranted} />;
     }
 
     // Android overlay mode - full screen effect
@@ -314,9 +270,9 @@ function App(): JSX.Element {
           VELOCITY_DISSIPATION={config.VELOCITY_DISSIPATION}
           COLOR_UPDATE_SPEED={config.COLOR_UPDATE_SPEED}
           SHADING={config.SHADING}
-          colorHueRange={colorSettings.colorHueRange}
-          colorSaturation={colorSettings.colorSaturation}
-          colorBrightness={colorSettings.colorBrightness}
+          colorHueRange={colorHueRange}
+          colorSaturation={colorSaturation}
+          colorBrightness={colorBrightness}
         />
       </div>
     );
@@ -335,9 +291,9 @@ function App(): JSX.Element {
         VELOCITY_DISSIPATION={config.VELOCITY_DISSIPATION}
         COLOR_UPDATE_SPEED={config.COLOR_UPDATE_SPEED}
         SHADING={config.SHADING}
-        colorHueRange={colorSettings.colorHueRange}
-        colorSaturation={colorSettings.colorSaturation}
-        colorBrightness={colorSettings.colorBrightness}
+        colorHueRange={colorHueRange}
+        colorSaturation={colorSaturation}
+        colorBrightness={colorBrightness}
       />
       <Settings
         isOpen={isSettingsOpen}
@@ -345,25 +301,13 @@ function App(): JSX.Element {
         config={config}
         onConfigChange={handleConfigChange}
       />
-      {isControlPanelOpen && (
-        <div className="modal-overlay" onClick={handleControlPanelClose}>
-          <div onClick={(e) => e.stopPropagation()}>
-            <ControlPanel
-              onPresetChange={handlePresetChange}
-              currentPreset={colorPreset}
-              onOpenCustomizer={() => {
-                setIsControlPanelOpen(false);
-                setIsColorCustomizerOpen(true);
-              }}
-            />
-          </div>
-        </div>
-      )}
-      {isColorCustomizerOpen && (
-        <ColorCustomizer
-          onClose={handleColorCustomizerClose}
-          onSave={handleThemeSave}
-          initialTheme={customTheme || undefined}
+      {isThemeCustomizerOpen && (
+        <ThemeCustomizer
+          onClose={handleThemeCustomizerClose}
+          onColorChange={handleColorChange}
+          initialHueRange={colorHueRange}
+          initialSaturation={colorSaturation}
+          initialBrightness={colorBrightness}
         />
       )}
       {!isAndroid && <ClickThroughIndicator />}

@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import { useEffect, useState } from 'react';
 import './Settings.css';
 
 interface SettingsProps {
@@ -44,7 +44,7 @@ export default function Settings({
   if (!isOpen) return null;
 
   const handleChange = (key: keyof FluidConfig, value: number | boolean): void => {
-    const newConfig = {...localConfig, [key]: value};
+    const newConfig = { ...localConfig, [key]: value };
     setLocalConfig(newConfig);
     onConfigChange(newConfig);
   };

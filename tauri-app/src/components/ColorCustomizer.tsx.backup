@@ -1,4 +1,5 @@
 import {useState, useEffect, useRef} from 'react';
+import {appWindow} from '@tauri-apps/api/window';
 import './ColorCustomizer.css';
 
 export interface CustomColor {
@@ -27,6 +28,8 @@ interface ColorCustomizerProps {
   onSave: (theme: ColorTheme) => void;
   initialTheme?: ColorTheme;
 }
+
+type TabType = 'colors' | 'editor' | 'settings' | 'presets';
 
 export default function ColorCustomizer({
   onClose,
@@ -65,13 +68,23 @@ export default function ColorCustomizer({
   const [selectedColorId, setSelectedColorId] = useState<string>(
     theme.colors[0]?.id || '1'
   );
-  const [previewAnimation, setPreviewAnimation] = useState(0);
+  const [activeTab, setActiveTab] = useState<TabType>('colors');
 
+  // Disable click-through when customizer is open
   useEffect(() => {
-    const interval = setInterval(() => {
-      setPreviewAnimation((prev) => (prev + 0.01) % 1);
-    }, 50);
-    return () => clearInterval(interval);
+    const disableClickThrough = async () => {
+      try {
+        await appWindow.setIgnoreCursorEvents(false);
+      } catch (error) {
+        console.error('Failed to disable click-through:', error);
+      }
+    };
+
+    disableClickThrough();
+
+    return () => {
+      // Re-enable click-through when closing (will be handled by parent)
+    };
   }, []);
 
   const selectedColor = theme.colors.find((c) => c.id === selectedColorId);
@@ -651,25 +664,54 @@ export default function ColorCustomizer({
             placeholder="Theme Name"
           />
           <button className="save-btn" onClick={handleSave}>
-            Save
+            Save Theme
+          </button>
+        </div>
+
+        {/* Preview Section - Fixed */}
+        <div className="preview-section">
+          <div className="preview-container">
+            <div
+              className="preview-gradient"
+              style={{
+                background: getPreviewGradient(),
+              }}
+            />
+            <div className="preview-label-overlay">
+              <span className="preview-label">Live Preview</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="tab-navigation">
+          <button
+            className={`tab-btn ${activeTab === 'presets' ? 'active' : ''}`}
+            onClick={() => setActiveTab('presets')}
+          >
+            🎨 Presets
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'colors' ? 'active' : ''}`}
+            onClick={() => setActiveTab('colors')}
+          >
+            🎨 Colors ({theme.colors.length})
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('editor')}
+          >
+            ✏️ Editor
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            ⚙️ Settings
           </button>
         </div>
 
         <div className="customizer-content">
-          {/* Preview Section */}
-          <div className="preview-section">
-            <div
-              className="preview-canvas"
-              style={{
-                background: getPreviewGradient(),
-                transform: `rotate(${previewAnimation * 360}deg)`,
-              }}
-            >
-              <div className="preview-overlay">
-                <span className="preview-label">Preview</span>
-              </div>
-            </div>
-          </div>
 
           {/* Preset Themes */}
           <div className="presets-section">

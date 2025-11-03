@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import Settings, { FluidConfig } from './Settings';
-import { ColorPreset, COLOR_PRESETS } from './ControlPanel';
+import { ColorPreset, COLOR_PRESETS } from './ThemeCustomizer';
 import './AndroidHome.css';
 
 interface AndroidHomeProps {
@@ -114,11 +114,14 @@ function AndroidHome({ onPermissionGranted }: AndroidHomeProps): JSX.Element {
                   setShowColorPicker(false);
                 }}
               >
-                <div className="preset-preview" style={{
-                  background: `linear-gradient(135deg, 
-                    hsl(${preset.hueRange[0] * 360}, ${preset.saturation * 100}%, ${preset.brightness * 50}%), 
-                    hsl(${preset.hueRange[1] * 360}, ${preset.saturation * 100}%, ${preset.brightness * 50}%))`
-                }}></div>
+                <div
+                  className="preset-preview"
+                  style={{
+                    background: `linear-gradient(135deg, 
+                    hsl(${(preset.hueRange?.[0] ?? 0) * 360}, ${(preset.saturation ?? 1) * 100}%, ${(preset.brightness ?? 0.5) * 50}%), 
+                    hsl(${(preset.hueRange?.[1] ?? 1) * 360}, ${(preset.saturation ?? 1) * 100}%, ${(preset.brightness ?? 0.5) * 50}%))`,
+                  }}
+                ></div>
                 <div className="preset-name">{preset.name}</div>
               </button>
             ))}
@@ -132,7 +135,7 @@ function AndroidHome({ onPermissionGranted }: AndroidHomeProps): JSX.Element {
     <div className="android-home">
       <div className="glass-container">
         <div className="neon-border"></div>
-        
+
         <div className="logo-section">
           <div className="logo-glow"></div>
           <h1 className="app-title">
@@ -188,9 +191,7 @@ function AndroidHome({ onPermissionGranted }: AndroidHomeProps): JSX.Element {
           </div>
         )}
 
-        <div className="footer-text">
-          Tap cards above to customize
-        </div>
+        <div className="footer-text">Tap cards above to customize</div>
       </div>
     </div>
   );

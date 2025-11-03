@@ -1,4 +1,4 @@
-import {useEffect, useRef} from 'react';
+import { useEffect, useRef } from 'react';
 
 interface ColorRGB {
   r: number;
@@ -50,7 +50,7 @@ function pointerPrototype(): Pointer {
     deltaY: 0,
     down: false,
     moved: false,
-    color: {r: 0, g: 0, b: 0},
+    color: { r: 0, g: 0, b: 0 },
   };
 }
 
@@ -67,7 +67,7 @@ export default function MagicMouse({
   SPLAT_FORCE = 6000,
   SHADING = true,
   COLOR_UPDATE_SPEED = 10,
-  BACK_COLOR = {r: 0.5, g: 0, b: 0},
+  BACK_COLOR = { r: 0.5, g: 0, b: 0 },
   TRANSPARENT = true,
   colorHueRange = [0, 1],
   colorSaturation = 1.0,
@@ -76,8 +76,6 @@ export default function MagicMouse({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    /* eslint-disable @typescript-eslint/no-use-before-define */
-    /* eslint-disable react/no-this-in-sfc */
     const canvas = canvasRef.current;
     if (!canvas) {
       console.error('Canvas ref is null');
@@ -113,7 +111,7 @@ export default function MagicMouse({
       console.error('WebGL context failed to initialize');
       return undefined;
     }
-    const {gl, ext} = webglContext;
+    const { gl, ext } = webglContext;
     console.log('MagicMouse: WebGL context initialized successfully');
 
     if (!ext.supportLinearFiltering) {
@@ -125,14 +123,14 @@ export default function MagicMouse({
       | {
           gl: WebGL2RenderingContext;
           ext: {
-            formatRGBA: {internalFormat: number; format: number} | null;
-            formatRG: {internalFormat: number; format: number} | null;
-            formatR: {internalFormat: number; format: number} | null;
+            formatRGBA: { internalFormat: number; format: number } | null;
+            formatRG: { internalFormat: number; format: number } | null;
+            formatR: { internalFormat: number; format: number } | null;
             halfFloatTexType: number;
             supportLinearFiltering: boolean;
           };
         }
-      | {gl: null; ext: null} {
+      | { gl: null; ext: null } {
       const params = {
         alpha: true,
         depth: false,
@@ -141,21 +139,15 @@ export default function MagicMouse({
         preserveDrawingBuffer: false,
       };
 
-      let glContext = canvasElement.getContext(
-        'webgl2',
-        params
-      ) as WebGL2RenderingContext | null;
+      let glContext = canvasElement.getContext('webgl2', params) as WebGL2RenderingContext | null;
 
       if (!glContext) {
         glContext = (canvasElement.getContext('webgl', params) ||
-          canvasElement.getContext(
-            'experimental-webgl',
-            params
-          )) as WebGL2RenderingContext | null;
+          canvasElement.getContext('experimental-webgl', params)) as WebGL2RenderingContext | null;
       }
 
       if (!glContext) {
-        return {gl: null, ext: null};
+        return { gl: null, ext: null };
       }
 
       const isWebGL2 = 'drawBuffers' in glContext;
@@ -164,29 +156,24 @@ export default function MagicMouse({
       let halfFloat = null;
 
       if (isWebGL2) {
-        (glContext as WebGL2RenderingContext).getExtension(
-          'EXT_color_buffer_float'
+        (glContext as WebGL2RenderingContext).getExtension('EXT_color_buffer_float');
+        supportLinearFiltering = !!(glContext as WebGL2RenderingContext).getExtension(
+          'OES_texture_float_linear'
         );
-        supportLinearFiltering = !!(
-          glContext as WebGL2RenderingContext
-        ).getExtension('OES_texture_float_linear');
       } else {
         halfFloat = glContext.getExtension('OES_texture_half_float');
-        supportLinearFiltering = !!glContext.getExtension(
-          'OES_texture_half_float_linear'
-        );
+        supportLinearFiltering = !!glContext.getExtension('OES_texture_half_float_linear');
       }
 
       glContext.clearColor(0, 0, 0, 1);
 
       const halfFloatTexType = isWebGL2
         ? (glContext as WebGL2RenderingContext).HALF_FLOAT
-        : (halfFloat && (halfFloat as OES_texture_half_float).HALF_FLOAT_OES) ||
-          0;
+        : (halfFloat && (halfFloat as OES_texture_half_float).HALF_FLOAT_OES) || 0;
 
-      let formatRGBA: {internalFormat: number; format: number} | null;
-      let formatRG: {internalFormat: number; format: number} | null;
-      let formatR: {internalFormat: number; format: number} | null;
+      let formatRGBA: { internalFormat: number; format: number } | null;
+      let formatRG: { internalFormat: number; format: number } | null;
+      let formatR: { internalFormat: number; format: number } | null;
 
       if (isWebGL2) {
         formatRGBA = getSupportedFormat(
@@ -214,18 +201,8 @@ export default function MagicMouse({
           glContext.RGBA,
           halfFloatTexType
         );
-        formatRG = getSupportedFormat(
-          glContext,
-          glContext.RGBA,
-          glContext.RGBA,
-          halfFloatTexType
-        );
-        formatR = getSupportedFormat(
-          glContext,
-          glContext.RGBA,
-          glContext.RGBA,
-          halfFloatTexType
-        );
+        formatRG = getSupportedFormat(glContext, glContext.RGBA, glContext.RGBA, halfFloatTexType);
+        formatR = getSupportedFormat(glContext, glContext.RGBA, glContext.RGBA, halfFloatTexType);
       }
 
       return {
@@ -245,7 +222,7 @@ export default function MagicMouse({
       internalFormat: number,
       format: number,
       type: number
-    ): {internalFormat: number; format: number} | null {
+    ): { internalFormat: number; format: number } | null {
       if (!supportRenderTextureFormat(glCtx, internalFormat, format, type)) {
         if ('drawBuffers' in glCtx) {
           const gl2 = glCtx as WebGL2RenderingContext;
@@ -260,7 +237,7 @@ export default function MagicMouse({
         }
         return null;
       }
-      return {internalFormat, format};
+      return { internalFormat, format };
     }
 
     function supportRenderTextureFormat(
@@ -273,37 +250,11 @@ export default function MagicMouse({
       if (!texture) return false;
 
       glCtx.bindTexture(glCtx.TEXTURE_2D, texture);
-      glCtx.texParameteri(
-        glCtx.TEXTURE_2D,
-        glCtx.TEXTURE_MIN_FILTER,
-        glCtx.NEAREST
-      );
-      glCtx.texParameteri(
-        glCtx.TEXTURE_2D,
-        glCtx.TEXTURE_MAG_FILTER,
-        glCtx.NEAREST
-      );
-      glCtx.texParameteri(
-        glCtx.TEXTURE_2D,
-        glCtx.TEXTURE_WRAP_S,
-        glCtx.CLAMP_TO_EDGE
-      );
-      glCtx.texParameteri(
-        glCtx.TEXTURE_2D,
-        glCtx.TEXTURE_WRAP_T,
-        glCtx.CLAMP_TO_EDGE
-      );
-      glCtx.texImage2D(
-        glCtx.TEXTURE_2D,
-        0,
-        internalFormat,
-        4,
-        4,
-        0,
-        format,
-        type,
-        null
-      );
+      glCtx.texParameteri(glCtx.TEXTURE_2D, glCtx.TEXTURE_MIN_FILTER, glCtx.NEAREST);
+      glCtx.texParameteri(glCtx.TEXTURE_2D, glCtx.TEXTURE_MAG_FILTER, glCtx.NEAREST);
+      glCtx.texParameteri(glCtx.TEXTURE_2D, glCtx.TEXTURE_WRAP_S, glCtx.CLAMP_TO_EDGE);
+      glCtx.texParameteri(glCtx.TEXTURE_2D, glCtx.TEXTURE_WRAP_T, glCtx.CLAMP_TO_EDGE);
+      glCtx.texImage2D(glCtx.TEXTURE_2D, 0, internalFormat, 4, 4, 0, format, type, null);
 
       const fbo = glCtx.createFramebuffer();
       if (!fbo) return false;
@@ -324,9 +275,8 @@ export default function MagicMouse({
       if (!s.length) return 0;
       let hash = 0;
       for (let i = 0; i < s.length; i += 1) {
-        // eslint-disable-next-line no-bitwise
         hash = (hash << 5) - hash + s.charCodeAt(i);
-        // eslint-disable-next-line no-bitwise
+
         hash |= 0;
       }
       return hash;
@@ -375,18 +325,13 @@ export default function MagicMouse({
       return program;
     }
 
-    function getUniforms(
-      program: WebGLProgram
-    ): Record<string, WebGLUniformLocation | null> {
+    function getUniforms(program: WebGLProgram): Record<string, WebGLUniformLocation | null> {
       const uniforms: Record<string, WebGLUniformLocation | null> = {};
       const uniformCount = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
       for (let i = 0; i < uniformCount; i += 1) {
         const uniformInfo = gl.getActiveUniform(program, i);
         if (uniformInfo) {
-          uniforms[uniformInfo.name] = gl.getUniformLocation(
-            program,
-            uniformInfo.name
-          );
+          uniforms[uniformInfo.name] = gl.getUniformLocation(program, uniformInfo.name);
         }
       }
       return uniforms;
@@ -397,10 +342,7 @@ export default function MagicMouse({
 
       uniforms: Record<string, WebGLUniformLocation | null>;
 
-      constructor(
-        vertexShader: WebGLShader | null,
-        fragmentShader: WebGLShader | null
-      ) {
+      constructor(vertexShader: WebGLShader | null, fragmentShader: WebGLShader | null) {
         this.program = createProgram(vertexShader, fragmentShader);
         this.uniforms = this.program ? getUniforms(this.program) : {};
       }
@@ -421,10 +363,7 @@ export default function MagicMouse({
 
       uniforms: Record<string, WebGLUniformLocation | null>;
 
-      constructor(
-        vertexShader: WebGLShader | null,
-        fragmentShaderSource: string
-      ) {
+      constructor(vertexShader: WebGLShader | null, fragmentShaderSource: string) {
         this.vertexShader = vertexShader;
         this.fragmentShaderSource = fragmentShaderSource;
         this.programs = {};
@@ -766,11 +705,7 @@ export default function MagicMouse({
       );
       const elemBuffer = gl.createBuffer()!;
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, elemBuffer);
-      gl.bufferData(
-        gl.ELEMENT_ARRAY_BUFFER,
-        new Uint16Array([0, 1, 2, 0, 2, 3]),
-        gl.STATIC_DRAW
-      );
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(0);
 
@@ -825,10 +760,7 @@ export default function MagicMouse({
     const curlProgram = new Program(baseVertexShader, curlShader);
     const vorticityProgram = new Program(baseVertexShader, vorticityShader);
     const pressureProgram = new Program(baseVertexShader, pressureShader);
-    const gradienSubtractProgram = new Program(
-      baseVertexShader,
-      gradientSubtractShader
-    );
+    const gradienSubtractProgram = new Program(baseVertexShader, gradientSubtractShader);
     const displayMaterial = new Material(baseVertexShader, displayShaderSource);
 
     function createFBO(
@@ -846,26 +778,10 @@ export default function MagicMouse({
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, param);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        internalFormat,
-        w,
-        h,
-        0,
-        format,
-        type,
-        null
-      );
+      gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, w, h, 0, format, type, null);
       const fbo = gl.createFramebuffer()!;
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-      gl.framebufferTexture2D(
-        gl.FRAMEBUFFER,
-        gl.COLOR_ATTACHMENT0,
-        gl.TEXTURE_2D,
-        texture,
-        0
-      );
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
       gl.viewport(0, 0, w, h);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -939,15 +855,7 @@ export default function MagicMouse({
       param: number
     ): DoubleFBO {
       if (target.width === w && target.height === h) return target;
-      target.read = resizeFBO(
-        target.read,
-        w,
-        h,
-        internalFormat,
-        format,
-        type,
-        param
-      );
+      target.read = resizeFBO(target.read, w, h, internalFormat, format, type, param);
       target.write = createFBO(w, h, internalFormat, format, type, param);
       target.width = w;
       target.height = h;
@@ -1058,9 +966,9 @@ export default function MagicMouse({
       const min = Math.round(resolution);
       const max = Math.round(resolution * aspect);
       if (w > h) {
-        return {width: max, height: min};
+        return { width: max, height: min };
       }
-      return {width: min, height: max};
+      return { width: min, height: max };
     }
 
     function scaleByPixelRatio(input: number): number {
@@ -1133,11 +1041,7 @@ export default function MagicMouse({
 
       curlProgram.bind();
       if (curlProgram.uniforms.texelSize) {
-        gl.uniform2f(
-          curlProgram.uniforms.texelSize,
-          velocity.texelSizeX,
-          velocity.texelSizeY
-        );
+        gl.uniform2f(curlProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
       }
       if (curlProgram.uniforms.uVelocity) {
         gl.uniform1i(curlProgram.uniforms.uVelocity, velocity.read.attach(0));
@@ -1146,17 +1050,10 @@ export default function MagicMouse({
 
       vorticityProgram.bind();
       if (vorticityProgram.uniforms.texelSize) {
-        gl.uniform2f(
-          vorticityProgram.uniforms.texelSize,
-          velocity.texelSizeX,
-          velocity.texelSizeY
-        );
+        gl.uniform2f(vorticityProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
       }
       if (vorticityProgram.uniforms.uVelocity) {
-        gl.uniform1i(
-          vorticityProgram.uniforms.uVelocity,
-          velocity.read.attach(0)
-        );
+        gl.uniform1i(vorticityProgram.uniforms.uVelocity, velocity.read.attach(0));
       }
       if (vorticityProgram.uniforms.uCurl) {
         gl.uniform1i(vorticityProgram.uniforms.uCurl, curl.attach(1));
@@ -1179,10 +1076,7 @@ export default function MagicMouse({
         );
       }
       if (divergenceProgram.uniforms.uVelocity) {
-        gl.uniform1i(
-          divergenceProgram.uniforms.uVelocity,
-          velocity.read.attach(0)
-        );
+        gl.uniform1i(divergenceProgram.uniforms.uVelocity, velocity.read.attach(0));
       }
       blit(divergence);
 
@@ -1198,24 +1092,14 @@ export default function MagicMouse({
 
       pressureProgram.bind();
       if (pressureProgram.uniforms.texelSize) {
-        gl.uniform2f(
-          pressureProgram.uniforms.texelSize,
-          velocity.texelSizeX,
-          velocity.texelSizeY
-        );
+        gl.uniform2f(pressureProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
       }
       if (pressureProgram.uniforms.uDivergence) {
-        gl.uniform1i(
-          pressureProgram.uniforms.uDivergence,
-          divergence.attach(0)
-        );
+        gl.uniform1i(pressureProgram.uniforms.uDivergence, divergence.attach(0));
       }
       for (let i = 0; i < config.PRESSURE_ITERATIONS; i += 1) {
         if (pressureProgram.uniforms.uPressure) {
-          gl.uniform1i(
-            pressureProgram.uniforms.uPressure,
-            pressure.read.attach(1)
-          );
+          gl.uniform1i(pressureProgram.uniforms.uPressure, pressure.read.attach(1));
         }
         blit(pressure.write);
         pressure.swap();
@@ -1230,32 +1114,19 @@ export default function MagicMouse({
         );
       }
       if (gradienSubtractProgram.uniforms.uPressure) {
-        gl.uniform1i(
-          gradienSubtractProgram.uniforms.uPressure,
-          pressure.read.attach(0)
-        );
+        gl.uniform1i(gradienSubtractProgram.uniforms.uPressure, pressure.read.attach(0));
       }
       if (gradienSubtractProgram.uniforms.uVelocity) {
-        gl.uniform1i(
-          gradienSubtractProgram.uniforms.uVelocity,
-          velocity.read.attach(1)
-        );
+        gl.uniform1i(gradienSubtractProgram.uniforms.uVelocity, velocity.read.attach(1));
       }
       blit(velocity.write);
       velocity.swap();
 
       advectionProgram.bind();
       if (advectionProgram.uniforms.texelSize) {
-        gl.uniform2f(
-          advectionProgram.uniforms.texelSize,
-          velocity.texelSizeX,
-          velocity.texelSizeY
-        );
+        gl.uniform2f(advectionProgram.uniforms.texelSize, velocity.texelSizeX, velocity.texelSizeY);
       }
-      if (
-        !ext.supportLinearFiltering &&
-        advectionProgram.uniforms.dyeTexelSize
-      ) {
+      if (!ext.supportLinearFiltering && advectionProgram.uniforms.dyeTexelSize) {
         gl.uniform2f(
           advectionProgram.uniforms.dyeTexelSize,
           velocity.texelSizeX,
@@ -1273,38 +1144,22 @@ export default function MagicMouse({
         gl.uniform1f(advectionProgram.uniforms.dt, dt);
       }
       if (advectionProgram.uniforms.dissipation) {
-        gl.uniform1f(
-          advectionProgram.uniforms.dissipation,
-          config.VELOCITY_DISSIPATION
-        );
+        gl.uniform1f(advectionProgram.uniforms.dissipation, config.VELOCITY_DISSIPATION);
       }
       blit(velocity.write);
       velocity.swap();
 
-      if (
-        !ext.supportLinearFiltering &&
-        advectionProgram.uniforms.dyeTexelSize
-      ) {
-        gl.uniform2f(
-          advectionProgram.uniforms.dyeTexelSize,
-          dye.texelSizeX,
-          dye.texelSizeY
-        );
+      if (!ext.supportLinearFiltering && advectionProgram.uniforms.dyeTexelSize) {
+        gl.uniform2f(advectionProgram.uniforms.dyeTexelSize, dye.texelSizeX, dye.texelSizeY);
       }
       if (advectionProgram.uniforms.uVelocity) {
-        gl.uniform1i(
-          advectionProgram.uniforms.uVelocity,
-          velocity.read.attach(0)
-        );
+        gl.uniform1i(advectionProgram.uniforms.uVelocity, velocity.read.attach(0));
       }
       if (advectionProgram.uniforms.uSource) {
         gl.uniform1i(advectionProgram.uniforms.uSource, dye.read.attach(1));
       }
       if (advectionProgram.uniforms.dissipation) {
-        gl.uniform1f(
-          advectionProgram.uniforms.dissipation,
-          config.DENSITY_DISSIPATION
-        );
+        gl.uniform1f(advectionProgram.uniforms.dissipation, config.DENSITY_DISSIPATION);
       }
       blit(dye.write);
       dye.swap();
@@ -1345,22 +1200,13 @@ export default function MagicMouse({
       splat(pointer.texcoordX, pointer.texcoordY, dx, dy, color);
     }
 
-    function splat(
-      x: number,
-      y: number,
-      dx: number,
-      dy: number,
-      color: ColorRGB
-    ): void {
+    function splat(x: number, y: number, dx: number, dy: number, color: ColorRGB): void {
       splatProgram.bind();
       if (splatProgram.uniforms.uTarget) {
         gl.uniform1i(splatProgram.uniforms.uTarget, velocity.read.attach(0));
       }
       if (splatProgram.uniforms.aspectRatio) {
-        gl.uniform1f(
-          splatProgram.uniforms.aspectRatio,
-          canvas!.width / canvas!.height
-        );
+        gl.uniform1f(splatProgram.uniforms.aspectRatio, canvas!.width / canvas!.height);
       }
       if (splatProgram.uniforms.point) {
         gl.uniform2f(splatProgram.uniforms.point, x, y);
@@ -1369,10 +1215,7 @@ export default function MagicMouse({
         gl.uniform3f(splatProgram.uniforms.color, dx, dy, 0);
       }
       if (splatProgram.uniforms.radius) {
-        gl.uniform1f(
-          splatProgram.uniforms.radius,
-          correctRadius(config.SPLAT_RADIUS / 100)!
-        );
+        gl.uniform1f(splatProgram.uniforms.radius, correctRadius(config.SPLAT_RADIUS / 100)!);
       }
       blit(velocity.write);
       velocity.swap();
@@ -1394,12 +1237,7 @@ export default function MagicMouse({
       return correctedRadius;
     }
 
-    function updatePointerDownData(
-      pointer: Pointer,
-      id: number,
-      posX: number,
-      posY: number
-    ): void {
+    function updatePointerDownData(pointer: Pointer, id: number, posX: number, posY: number): void {
       pointer.id = id;
       pointer.down = true;
       pointer.moved = false;
@@ -1422,14 +1260,9 @@ export default function MagicMouse({
       pointer.prevTexcoordY = pointer.texcoordY;
       pointer.texcoordX = posX / canvas!.width;
       pointer.texcoordY = 1 - posY / canvas!.height;
-      pointer.deltaX = correctDeltaX(
-        pointer.texcoordX - pointer.prevTexcoordX
-      )!;
-      pointer.deltaY = correctDeltaY(
-        pointer.texcoordY - pointer.prevTexcoordY
-      )!;
-      pointer.moved =
-        Math.abs(pointer.deltaX) > 0 || Math.abs(pointer.deltaY) > 0;
+      pointer.deltaX = correctDeltaX(pointer.texcoordX - pointer.prevTexcoordX)!;
+      pointer.deltaY = correctDeltaY(pointer.texcoordY - pointer.prevTexcoordY)!;
+      pointer.moved = Math.abs(pointer.deltaX) > 0 || Math.abs(pointer.deltaY) > 0;
       pointer.color = color;
     }
 
@@ -1452,9 +1285,7 @@ export default function MagicMouse({
     }
 
     function generateColor(): ColorRGB {
-      const hue =
-        colorHueRange[0] +
-        Math.random() * (colorHueRange[1] - colorHueRange[0]);
+      const hue = colorHueRange[0] + Math.random() * (colorHueRange[1] - colorHueRange[0]);
       const c = HSVtoRGB(hue, colorSaturation, colorBrightness);
       c.r *= 0.15;
       c.g *= 0.15;
@@ -1505,7 +1336,7 @@ export default function MagicMouse({
           b = q;
           break;
       }
-      return {r, g, b};
+      return { r, g, b };
     }
 
     function wrap(value: number, min: number, max: number): number {
@@ -1527,7 +1358,7 @@ export default function MagicMouse({
       const pointer = pointers[0];
       const posX = scaleByPixelRatio(e.clientX);
       const posY = scaleByPixelRatio(e.clientY);
-      const {color} = pointer;
+      const { color } = pointer;
       updatePointerMoveData(pointer, posX, posY, color);
     };
 
@@ -1578,28 +1409,20 @@ export default function MagicMouse({
     canvas.addEventListener('touchmove', onTouchMove, false);
     canvas.addEventListener('touchend', onTouchEnd);
     document.addEventListener('visibilitychange', onVisibility);
-    canvas.addEventListener(
-      'webglcontextlost',
-      onContextLost as EventListener,
-      false
-    );
-    canvas.addEventListener(
-      'webglcontextrestored',
-      onContextRestored as EventListener,
-      false
-    );
+    canvas.addEventListener('webglcontextlost', onContextLost as EventListener, false);
+    canvas.addEventListener('webglcontextrestored', onContextRestored as EventListener, false);
 
     // Listen for global mouse events from Tauri (when click-through is enabled)
     let unlistenGlobalMouse: (() => void) | null = null;
     if (isTauri) {
-      import('@tauri-apps/api/event').then(({listen}) => {
+      import('@tauri-apps/api/event').then(({ listen }) => {
         listen<{
           x: number;
           y: number;
           screenWidth: number;
           screenHeight: number;
         }>('global-mouse-move', (event) => {
-          const {x, y, screenWidth, screenHeight} = event.payload;
+          const { x, y, screenWidth, screenHeight } = event.payload;
           // Convert screen coordinates to canvas coordinates
           const rect = canvas.getBoundingClientRect();
           const canvasX = (x / screenWidth) * rect.width;
@@ -1608,7 +1431,7 @@ export default function MagicMouse({
           const pointer = pointers[0];
           const posX = scaleByPixelRatio(canvasX);
           const posY = scaleByPixelRatio(canvasY);
-          const {color} = pointer;
+          const { color } = pointer;
           updatePointerMoveData(pointer, posX, posY, color);
         }).then((fn) => {
           unlistenGlobalMouse = fn;
@@ -1628,16 +1451,8 @@ export default function MagicMouse({
       canvas.removeEventListener('touchmove', onTouchMove, false);
       canvas.removeEventListener('touchend', onTouchEnd);
       document.removeEventListener('visibilitychange', onVisibility);
-      canvas.removeEventListener(
-        'webglcontextlost',
-        onContextLost as EventListener,
-        false
-      );
-      canvas.removeEventListener(
-        'webglcontextrestored',
-        onContextRestored as EventListener,
-        false
-      );
+      canvas.removeEventListener('webglcontextlost', onContextLost as EventListener, false);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored as EventListener, false);
       if (unlistenGlobalMouse) unlistenGlobalMouse();
       if (rafId) cancelAnimationFrame(rafId);
     };

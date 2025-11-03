@@ -1,13 +1,14 @@
-import {useEffect, useState} from 'react';
+import { useEffect, useState } from 'react';
 import './Welcome.css';
 
 interface WelcomeProps {
   onComplete: () => void;
 }
 
-export default function Welcome({onComplete}: WelcomeProps): JSX.Element | null {
+export default function Welcome({ onComplete }: WelcomeProps): JSX.Element | null {
   const [show, setShow] = useState(true);
   const [stage, setStage] = useState(0);
+  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
     const timers = [
@@ -20,21 +21,26 @@ export default function Welcome({onComplete}: WelcomeProps): JSX.Element | null 
   }, []);
 
   const handleClick = (): void => {
-    setShow(false);
-    setTimeout(onComplete, 800);
+    if (stage >= 3) {
+      setFadeOut(true);
+      setTimeout(() => {
+        setShow(false);
+        onComplete();
+      }, 800);
+    }
   };
 
   if (!show) return null;
 
   return (
-    <div 
-      className={`welcome-container ${stage >= 3 ? 'fade-out' : ''}`}
+    <div
+      className={`welcome-container ${fadeOut ? 'fade-out' : ''}`}
       onClick={handleClick}
-      style={{cursor: stage >= 3 ? 'pointer' : 'default'}}
+      style={{ cursor: stage >= 3 ? 'pointer' : 'default' }}
     >
       {/* Animated background particles */}
       <div className="particles">
-        {Array.from({length: 50}).map((_, i) => (
+        {Array.from({ length: 50 }).map((_, i) => (
           <div
             key={i}
             className="particle"
@@ -57,7 +63,7 @@ export default function Welcome({onComplete}: WelcomeProps): JSX.Element | null 
 
       {/* Confetti */}
       <div className="confetti-container">
-        {Array.from({length: 30}).map((_, i) => (
+        {Array.from({ length: 30 }).map((_, i) => (
           <div
             key={i}
             className="confetti"
@@ -65,13 +71,9 @@ export default function Welcome({onComplete}: WelcomeProps): JSX.Element | null 
               left: `${Math.random() * 100}%`,
               animationDelay: `${Math.random() * 2}s`,
               animationDuration: `${2 + Math.random() * 2}s`,
-              backgroundColor: [
-                '#ff00ff',
-                '#00ffff',
-                '#ffff00',
-                '#ff0080',
-                '#00ff80',
-              ][Math.floor(Math.random() * 5)],
+              backgroundColor: ['#ff00ff', '#00ffff', '#ffff00', '#ff0080', '#00ff80'][
+                Math.floor(Math.random() * 5)
+              ],
             }}
           />
         ))}
@@ -105,11 +107,7 @@ export default function Welcome({onComplete}: WelcomeProps): JSX.Element | null 
           Transform your desktop with stunning fluid effects
         </p>
 
-        {stage >= 3 && (
-          <p className="welcome-click-hint">
-            Click anywhere to continue
-          </p>
-        )}
+        {stage >= 3 && <p className="welcome-click-hint">Click anywhere to continue</p>}
 
         <div className={`welcome-features ${stage >= 2 ? 'show' : ''}`}>
           <div className="feature">

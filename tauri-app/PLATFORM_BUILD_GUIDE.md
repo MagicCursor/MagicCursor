@@ -59,16 +59,20 @@ yarn run tauri:build
 ```
 This will attempt to build for all platforms sequentially. Note: This will only succeed for platforms where you have the required toolchain installed.
 
-### Windows Build (MSI)
+### Windows Build (MSI + EXE)
 ```bash
 yarn run tauri:windows
 ```
 **Output formats:**
 - `.msi` - Windows Installer (requires WiX Toolset)
+- `.exe` - Standalone executable (portable)
 
-**Output location:** `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/`
+**Output locations:**
+- MSI: `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/`
+- EXE: `src-tauri/target/release/Magic Cursor.exe` (copied for convenience)
+- EXE: `src-tauri/target/x86_64-pc-windows-msvc/release/Magic Cursor.exe` (original)
 
-**Note:** The MSI installer includes the executable. After installation, the app will be available in the Start Menu and can be launched from there.
+**Note:** The build creates both the MSI installer and standalone EXE. The EXE is automatically copied to the generic release folder for easy access.
 
 ### Linux Build (DEB, AppImage)
 ```bash
