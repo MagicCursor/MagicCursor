@@ -16,8 +16,10 @@ Updated the Tauri build configuration to support independent platform-specific b
 
 2. **Linux Build** - `yarn run tauri:linux`
    - Outputs: DEB, AppImage
-   - Requires: Linux OS, build-essential, webkit2gtk
-   - Output location: `src-tauri/target/release/bundle/`
+   - Requires: **Actual Linux OS** (cannot build on Windows!)
+   - Requires: build-essential, webkit2gtk
+   - Output location: `src-tauri/target/release/bundle/deb/` and `bundle/appimage/`
+   - **Note:** Running on Windows will compile but NOT create bundle files
 
 3. **Android Build** - `yarn run tauri:android`
    - Targets: aarch64, armv7, i686, x86_64 (all Android architectures)
