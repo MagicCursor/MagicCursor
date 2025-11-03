@@ -13,6 +13,9 @@
   "tauri": {
     "allowlist": {
       "all": false,
+      "os": {
+        "all": true
+      },
       "window": {
         "all": false,
         "close": true,
@@ -25,7 +28,8 @@
         "startDragging": false,
         "setAlwaysOnTop": true,
         "setDecorations": false,
-        "setIgnoreCursorEvents": true
+        "setIgnoreCursorEvents": true,
+        "setFullscreen": true
       }
     },
     "bundle": {
@@ -38,10 +42,38 @@
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
-      ]
+      ],
+      "windows": {
+        "webviewInstallMode": {
+          "type": "embedBootstrapper"
+        },
+        "wix": {
+          "language": "en-US"
+        },
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      },
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "macOS": {
+        "frameworks": [],
+        "minimumSystemVersion": "10.13",
+        "exceptionDomain": "",
+        "signingIdentity": null,
+        "providerShortName": null,
+        "entitlements": null
+      },
+      "shortDescription": "Magic Cursor - Desktop Overlay",
+      "longDescription": "Magic Cursor is a desktop overlay application that creates beautiful fluid effects following your mouse cursor.",
+      "copyright": "Copyright © 2024 Magic Cursor"
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     },
     "windows": [
       {
@@ -54,13 +86,16 @@
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
-        "visible": true
+        "visible": true,
+        "fileDropEnabled": false,
+        "focus": false
       }
     ],
     "systemTray": {
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true,
-      "menuOnLeftClick": false
+      "menuOnLeftClick": false,
+      "title": "Magic Cursor"
     }
   }
 }

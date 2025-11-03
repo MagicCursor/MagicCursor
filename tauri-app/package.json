@@ -9,15 +9,24 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "yarn run tauri:windows && yarn run tauri:linux && yarn run tauri:android && yarn run tauri:ios",
+    "tauri:windows": "tauri build --target x86_64-pc-windows-msvc --bundles msi",
+    "tauri:linux": "tauri build --bundles deb,appimage",
+    "tauri:android": "tauri android build --release --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --apk",
+    "tauri:ios": "tauri ios build --release",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "ios:init": "tauri ios init",
+    "ios:dev": "tauri ios dev"
   },
   "dependencies": {
+    "@tauri-apps/api": "^1.5.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@tauri-apps/api": "^1.5.3"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^1.5.9",
+    "@types/minimatch": "^6.0.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",

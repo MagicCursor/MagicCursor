@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from 'react';
+import {useEffect, useRef} from 'react';
 
 interface ColorRGB {
   r: number;
@@ -21,6 +21,9 @@ interface MagicMouseProps {
   COLOR_UPDATE_SPEED?: number;
   BACK_COLOR?: ColorRGB;
   TRANSPARENT?: boolean;
+  colorHueRange?: [number, number];
+  colorSaturation?: number;
+  colorBrightness?: number;
 }
 
 interface Pointer {
@@ -66,6 +69,9 @@ export default function MagicMouse({
   COLOR_UPDATE_SPEED = 10,
   BACK_COLOR = {r: 0.5, g: 0, b: 0},
   TRANSPARENT = true,
+  colorHueRange = [0, 1],
+  colorSaturation = 1.0,
+  colorBrightness = 1.0,
 }: MagicMouseProps): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -73,7 +79,14 @@ export default function MagicMouse({
     /* eslint-disable @typescript-eslint/no-use-before-define */
     /* eslint-disable react/no-this-in-sfc */
     const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    if (!canvas) {
+      console.error('Canvas ref is null');
+      return undefined;
+    }
+    console.log('MagicMouse: Canvas initialized', canvas);
+
+    // Check if we're in Tauri environment
+    const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
     const pointers: Pointer[] = [pointerPrototype()];
 
@@ -96,8 +109,12 @@ export default function MagicMouse({
     };
 
     const webglContext = getWebGLContext(canvas);
-    if (!webglContext.gl || !webglContext.ext) return undefined;
+    if (!webglContext.gl || !webglContext.ext) {
+      console.error('WebGL context failed to initialize');
+      return undefined;
+    }
     const {gl, ext} = webglContext;
+    console.log('MagicMouse: WebGL context initialized successfully');
 
     if (!ext.supportLinearFiltering) {
       config.DYE_RESOLUTION = 256;
@@ -947,6 +964,12 @@ export default function MagicMouse({
       const rgba = ext.formatRGBA;
       const rg = ext.formatRG;
       const r = ext.formatR;
+
+      if (!rgba || !rg || !r) {
+        console.error('Required texture formats not supported');
+        return;
+      }
+
       const filtering = ext.supportLinearFiltering ? gl.LINEAR : gl.NEAREST;
       gl.disable(gl.BLEND);
 
@@ -1429,7 +1452,10 @@ export default function MagicMouse({
     }
 
     function generateColor(): ColorRGB {
-      const c = HSVtoRGB(Math.random(), 1.0, 1.0);
+      const hue =
+        colorHueRange[0] +
+        Math.random() * (colorHueRange[1] - colorHueRange[0]);
+      const c = HSVtoRGB(hue, colorSaturation, colorBrightness);
       c.r *= 0.15;
       c.g *= 0.15;
       c.b *= 0.15;
@@ -1546,11 +1572,11 @@ export default function MagicMouse({
       updateKeywords();
     };
 
-    window.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('touchstart', onTouchStart, false);
-    window.addEventListener('touchmove', onTouchMove, false);
-    window.addEventListener('touchend', onTouchEnd);
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('touchstart', onTouchStart, false);
+    canvas.addEventListener('touchmove', onTouchMove, false);
+    canvas.addEventListener('touchend', onTouchEnd);
     document.addEventListener('visibilitychange', onVisibility);
     canvas.addEventListener(
       'webglcontextlost',
@@ -1563,16 +1589,44 @@ export default function MagicMouse({
       false
     );
 
+    // Listen for global mouse events from Tauri (when click-through is enabled)
+    let unlistenGlobalMouse: (() => void) | null = null;
+    if (isTauri) {
+      import('@tauri-apps/api/event').then(({listen}) => {
+        listen<{
+          x: number;
+          y: number;
+          screenWidth: number;
+          screenHeight: number;
+        }>('global-mouse-move', (event) => {
+          const {x, y, screenWidth, screenHeight} = event.payload;
+          // Convert screen coordinates to canvas coordinates
+          const rect = canvas.getBoundingClientRect();
+          const canvasX = (x / screenWidth) * rect.width;
+          const canvasY = (y / screenHeight) * rect.height;
+
+          const pointer = pointers[0];
+          const posX = scaleByPixelRatio(canvasX);
+          const posY = scaleByPixelRatio(canvasY);
+          const {color} = pointer;
+          updatePointerMoveData(pointer, posX, posY, color);
+        }).then((fn) => {
+          unlistenGlobalMouse = fn;
+        });
+      });
+    }
+
     // Start animation loop immediately
+    console.log('MagicMouse: Starting animation loop');
     rafId = requestAnimationFrame(updateFrame);
 
     // Cleanup on unmount
     return (): void => {
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('touchstart', onTouchStart, false);
-      window.removeEventListener('touchmove', onTouchMove, false);
-      window.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('mousedown', onMouseDown);
+      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('touchstart', onTouchStart, false);
+      canvas.removeEventListener('touchmove', onTouchMove, false);
+      canvas.removeEventListener('touchend', onTouchEnd);
       document.removeEventListener('visibilitychange', onVisibility);
       canvas.removeEventListener(
         'webglcontextlost',
@@ -1584,6 +1638,7 @@ export default function MagicMouse({
         onContextRestored as EventListener,
         false
       );
+      if (unlistenGlobalMouse) unlistenGlobalMouse();
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, [
@@ -1601,6 +1656,9 @@ export default function MagicMouse({
     COLOR_UPDATE_SPEED,
     BACK_COLOR,
     TRANSPARENT,
+    colorHueRange,
+    colorSaturation,
+    colorBrightness,
   ]);
 
   return (
@@ -1609,20 +1667,26 @@ export default function MagicMouse({
         position: 'fixed',
         top: 0,
         left: 0,
-        zIndex: 999999, // keep above most site overlays
+        right: 0,
+        bottom: 0,
+        zIndex: 999999,
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
         pointerEvents: 'none',
-        width: '100%',
-        height: '100%',
       }}
     >
       <canvas
         ref={canvasRef}
         id="fluid"
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
           width: '100vw',
           height: '100vh',
           display: 'block',
-          pointerEvents: 'none',
+          pointerEvents: 'auto',
         }}
       />
     </div>

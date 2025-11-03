@@ -197,7 +197,7 @@ Potential improvements:
 ## Contributing
 
 When modifying:
-1. Frontend changes: Edit React components, test with `npm run tauri:dev`
+1. Frontend changes: Edit React components, test with `yarn run tauri:dev`
 2. Backend changes: Edit Rust code, rebuild with Cargo
 3. Configuration: Update JSON files, restart dev server
 4. Icons: Replace files in `src-tauri/icons/`

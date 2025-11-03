@@ -45,7 +45,8 @@ sudo pacman -S webkit2gtk base-devel curl wget file openssl gtk3 libappindicator
 
 ```bash
 cd tauri-app
-npm install
+npm install -g yarn
+yarn install
 ```
 
 ## Step 4: Create Icon Files
@@ -74,12 +75,12 @@ cargo tauri icon path/to/your/icon.png
 
 ### Development Mode
 ```bash
-npm run tauri:dev
+yarn run tauri:dev
 ```
 
 ### Build for Production
 ```bash
-npm run tauri:build
+yarn run tauri:build
 ```
 
 ## Troubleshooting
