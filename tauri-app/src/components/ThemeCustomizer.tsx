@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { appWindow } from '@tauri-apps/api/window';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import './ThemeCustomizer.css';
 
 export interface HSLColor {
@@ -112,6 +111,9 @@ export default function ThemeCustomizer({
   const [selectedPreset, setSelectedPreset] = useState<string | null>(
     initialHueRange ? null : COLOR_PRESETS[0].name
   );
+  const [globalBrightness, setGlobalBrightness] = useState<number>(
+    initialBrightness !== undefined ? initialBrightness : 0.5
+  );
 
   const wheelRefs = [
     useRef<HTMLCanvasElement>(null),
@@ -119,159 +121,268 @@ export default function ThemeCustomizer({
     useRef<HTMLCanvasElement>(null),
   ];
 
-  // Disable click-through when customizer is open
-  useEffect(() => {
-    const disableClickThrough = async (): Promise<void> => {
-      try {
-        await appWindow.setIgnoreCursorEvents(false);
-      } catch (error) {
-        console.error('Failed to disable click-through:', error);
-      }
-    };
+  // Cache for color wheel backgrounds - use canvas elements instead of ImageData
+  const wheelBackgroundCache = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  const updateTimeoutRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
 
-    void disableClickThrough();
-
-    return () => {
-      const restoreClickThrough = async (): Promise<void> => {
-        try {
-          await appWindow.setIgnoreCursorEvents(true);
-        } catch (error) {
-          console.error('Failed to restore click-through:', error);
-        }
-      };
-      void restoreClickThrough();
-    };
-  }, []);
-
-  // Notify parent of color changes
-  useEffect(() => {
-    // Calculate hue range from the 3 colors
+  // Memoize color calculations to prevent unnecessary recalculations
+  const colorParams = useMemo(() => {
     const hues = colors.map((c) => c.h);
     const minHue = Math.min(...hues);
     const maxHue = Math.max(...hues);
-
-    // Calculate average saturation and brightness
     const avgSaturation = colors.reduce((sum, c) => sum + c.s, 0) / colors.length;
     const avgBrightness = colors.reduce((sum, c) => sum + c.l, 0) / colors.length;
 
-    onColorChange([minHue, maxHue], avgSaturation, avgBrightness);
-  }, [colors, onColorChange]);
+    return { minHue, maxHue, avgSaturation, avgBrightness };
+  }, [colors]);
 
-  const hslToString = (color: HSLColor): string => {
+  // Notify parent of color changes with proper debouncing
+  useEffect(() => {
+    if (updateTimeoutRef.current !== null) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    updateTimeoutRef.current = window.setTimeout(() => {
+      onColorChange(
+        [colorParams.minHue, colorParams.maxHue],
+        colorParams.avgSaturation,
+        globalBrightness
+      );
+    }, 150); // Debounce to 150ms for better performance
+
+    return () => {
+      if (updateTimeoutRef.current !== null) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [colorParams, globalBrightness, onColorChange]);
+
+  const hslToString = useCallback((color: HSLColor): string => {
     return `hsl(${color.h * 360}, ${color.s * 100}%, ${color.l * 100}%)`;
-  };
+  }, []);
 
-  const drawColorWheel = (canvas: HTMLCanvasElement, color: HSLColor): void => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Create and cache color wheel background using conic-gradient for better performance
+  const createColorWheelBackground = useCallback((size: number): HTMLCanvasElement => {
+    const bgCanvas = document.createElement('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    bgCanvas.width = size * dpr;
+    bgCanvas.height = size * dpr;
+    bgCanvas.style.width = `${size}px`;
+    bgCanvas.style.height = `${size}px`;
 
-    const size = canvas.width;
+    const ctx = bgCanvas.getContext('2d', { willReadFrequently: false, alpha: true });
+    if (!ctx) return bgCanvas;
+
+    ctx.scale(dpr, dpr);
+
     const centerX = size / 2;
     const centerY = size / 2;
     const radius = size / 2 - 10;
 
-    ctx.clearRect(0, 0, size, size);
-
-    // Draw color wheel
-    for (let angle = 0; angle < 360; angle += 1) {
-      const startAngle = ((angle - 90) * Math.PI) / 180;
-      const endAngle = ((angle + 1 - 90) * Math.PI) / 180;
-
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      ctx.closePath();
-
-      ctx.fillStyle = `hsl(${angle}, 100%, 50%)`;
-      ctx.fill();
+    // Use conic gradient for much better performance
+    const gradient = ctx.createConicGradient(0, centerX, centerY);
+    for (let i = 0; i <= 360; i += 30) {
+      gradient.addColorStop(i / 360, `hsl(${i}, 100%, 50%)`);
     }
-
-    // Draw saturation gradient
-    const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw current color indicator
-    const angle = ((color.h * 360 - 90) * Math.PI) / 180;
-    const indicatorRadius = radius * color.s;
-    const indicatorX = centerX + Math.cos(angle) * indicatorRadius;
-    const indicatorY = centerY + Math.sin(angle) * indicatorRadius;
+    // Draw saturation gradient
+    const radialGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    radialGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    radialGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
-    // Outer white ring
+    ctx.fillStyle = radialGradient;
     ctx.beginPath();
-    ctx.arc(indicatorX, indicatorY, 8, 0, Math.PI * 2);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Inner black ring
-    ctx.beginPath();
-    ctx.arc(indicatorX, indicatorY, 8, 0, Math.PI * 2);
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  };
+    return bgCanvas;
+  }, []);
 
-  // Draw all color wheels
-  useEffect(() => {
-    wheelRefs.forEach((ref, index) => {
-      if (ref.current) {
-        drawColorWheel(ref.current, colors[index]);
+  const drawColorWheel = useCallback(
+    (canvas: HTMLCanvasElement, color: HSLColor, wheelIndex: number): void => {
+      const ctx = canvas.getContext('2d', {
+        willReadFrequently: false,
+        alpha: true,
+      });
+      if (!ctx) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      const size = 150; // Logical size
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+
+      ctx.scale(dpr, dpr);
+
+      const centerX = size / 2;
+      const centerY = size / 2;
+      const radius = size / 2 - 10;
+
+      // Get or create cached background
+      let cachedBackground = wheelBackgroundCache.current.get(wheelIndex);
+
+      if (!cachedBackground) {
+        cachedBackground = createColorWheelBackground(size);
+        wheelBackgroundCache.current.set(wheelIndex, cachedBackground);
       }
+
+      // Draw cached background
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(cachedBackground, 0, 0, size, size);
+
+      // Draw current color indicator (only dynamic part)
+      // Convert hue to angle: 0° at top, rotating clockwise
+      const angleDeg = color.h * 360 - 90; // Subtract 90 to start from top
+      const angle = (angleDeg * Math.PI) / 180;
+      const indicatorRadius = radius * color.s;
+      const indicatorX = centerX + Math.cos(angle) * indicatorRadius;
+      const indicatorY = centerY + Math.sin(angle) * indicatorRadius;
+
+      // Outer white ring
+      ctx.beginPath();
+      ctx.arc(indicatorX, indicatorY, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Inner black ring
+      ctx.beginPath();
+      ctx.arc(indicatorX, indicatorY, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    },
+    [createColorWheelBackground]
+  );
+
+  // Draw all color wheels with performance optimization
+  useEffect(() => {
+    // Cancel any pending animation frame
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
+    // Use requestAnimationFrame for smoother rendering
+    rafIdRef.current = requestAnimationFrame(() => {
+      wheelRefs.forEach((ref, index) => {
+        if (ref.current) {
+          drawColorWheel(ref.current, colors[index], index);
+        }
+      });
+      rafIdRef.current = null;
     });
+
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [colors, drawColorWheel]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all caches
+      wheelBackgroundCache.current.clear();
+
+      if (updateTimeoutRef.current !== null) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
+
+  // Use ref to avoid recreating callback on every color change
+  const colorsRef = useRef(colors);
+  useEffect(() => {
+    colorsRef.current = colors;
   }, [colors]);
 
-  const handleWheelClick = (e: React.MouseEvent<HTMLCanvasElement>, index: number): void => {
-    const canvas = wheelRefs[index].current;
-    if (!canvas) return;
+  const handleWheelClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>, index: number): void => {
+      const canvas = wheelRefs[index].current;
+      if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const x = (e.clientX - rect.left) * dpr;
+      const y = (e.clientY - rect.top) * dpr;
 
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = canvas.width / 2 - 10;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = canvas.width / 2 - 10 * dpr;
 
-    const dx = x - centerX;
-    const dy = y - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+      const dx = x - centerX;
+      const dy = y - centerY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance > radius) return;
+      if (distance > radius) return;
 
-    // Calculate hue from angle
-    const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360;
-    const hue = angle / 360;
+      // Calculate hue from angle - atan2 returns angle from positive x-axis
+      // We need to rotate by -90 degrees to start from top (red at top)
+      const angleRad = Math.atan2(dy, dx);
+      const angleDeg = ((angleRad * 180) / Math.PI + 90 + 360) % 360;
+      const hue = angleDeg / 360;
 
-    // Calculate saturation from distance
-    const saturation = Math.min(distance / radius, 1);
+      // Calculate saturation from distance
+      const saturation = Math.min(distance / radius, 1);
 
-    // Keep current lightness
-    const currentL = colors[index].l;
+      // Keep current lightness from ref
+      const currentL = colorsRef.current[index].l;
 
-    const newColor: HSLColor = { h: hue, s: saturation, l: currentL };
+      const newColor: HSLColor = { h: hue, s: saturation, l: currentL };
 
-    const newColors: [HSLColor, HSLColor, HSLColor] = [...colors] as [HSLColor, HSLColor, HSLColor];
-    newColors[index] = newColor;
-    setColors(newColors);
-    setSelectedPreset(null); // Deselect preset on manual change
-  };
+      setColors((prevColors) => {
+        const newColors: [HSLColor, HSLColor, HSLColor] = [...prevColors] as [
+          HSLColor,
+          HSLColor,
+          HSLColor,
+        ];
+        newColors[index] = newColor;
+        return newColors;
+      });
+      setSelectedPreset(null); // Deselect preset on manual change
+    },
+    [] // No dependencies - uses ref instead
+  );
 
-  const handlePresetClick = (preset: ColorPreset): void => {
+  const handlePresetClick = useCallback((preset: ColorPreset): void => {
     setColors(preset.colors);
     setSelectedPreset(preset.name);
-  };
+    if (preset.brightness !== undefined) {
+      setGlobalBrightness(preset.brightness);
+    }
+    // No need to clear cache - backgrounds are static
+  }, []);
 
-  const handleSave = (): void => {
+  const handleBrightnessChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
+    const newBrightness = parseFloat(e.target.value);
+    setGlobalBrightness(newBrightness);
+
+    // Update all colors with new brightness
+    setColors((prevColors) => {
+      return prevColors.map((color) => ({
+        ...color,
+        l: newBrightness,
+      })) as [HSLColor, HSLColor, HSLColor];
+    });
+    setSelectedPreset(null);
+  }, []);
+
+  const handleSave = useCallback((): void => {
     onClose();
-  };
+  }, [onClose]);
 
   return (
     <div
@@ -334,6 +445,25 @@ export default function ThemeCustomizer({
         {/* Bottom Split - Color Wheels */}
         <div className="color-wheels-section">
           <h3>Custom Colors</h3>
+
+          {/* Brightness Control */}
+          <div className="brightness-control">
+            <label htmlFor="brightness-slider">
+              <span>Brightness</span>
+              <span className="brightness-value">{Math.round(globalBrightness * 100)}%</span>
+            </label>
+            <input
+              id="brightness-slider"
+              type="range"
+              min="0.1"
+              max="0.9"
+              step="0.01"
+              value={globalBrightness}
+              onChange={handleBrightnessChange}
+              className="brightness-slider"
+            />
+          </div>
+
           <div className="wheels-container">
             {colors.map((color, index) => (
               <div key={`color-${index}`} className="wheel-item">

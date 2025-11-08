@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 
 interface ColorRGB {
   r: number;
@@ -54,7 +54,7 @@ function pointerPrototype(): Pointer {
   };
 }
 
-export default function MagicMouse({
+function MagicMouse({
   SIM_RESOLUTION = 128,
   DYE_RESOLUTION = 1440,
   CAPTURE_RESOLUTION = 512,
@@ -1507,3 +1507,22 @@ export default function MagicMouse({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent updates
+export default memo(MagicMouse, (prevProps, nextProps) => {
+  // Only re-render if props actually changed
+  return (
+    prevProps.PRESSURE === nextProps.PRESSURE &&
+    prevProps.CURL === nextProps.CURL &&
+    prevProps.SPLAT_RADIUS === nextProps.SPLAT_RADIUS &&
+    prevProps.SPLAT_FORCE === nextProps.SPLAT_FORCE &&
+    prevProps.DENSITY_DISSIPATION === nextProps.DENSITY_DISSIPATION &&
+    prevProps.VELOCITY_DISSIPATION === nextProps.VELOCITY_DISSIPATION &&
+    prevProps.COLOR_UPDATE_SPEED === nextProps.COLOR_UPDATE_SPEED &&
+    prevProps.SHADING === nextProps.SHADING &&
+    prevProps.colorHueRange?.[0] === nextProps.colorHueRange?.[0] &&
+    prevProps.colorHueRange?.[1] === nextProps.colorHueRange?.[1] &&
+    prevProps.colorSaturation === nextProps.colorSaturation &&
+    prevProps.colorBrightness === nextProps.colorBrightness
+  );
+});

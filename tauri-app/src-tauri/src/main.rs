@@ -14,29 +14,39 @@ struct AppState {
 }
 
 #[tauri::command]
-fn get_click_through_state(state: State<AppState>) -> bool {
-    *state.click_through.lock().unwrap()
+fn get_click_through_state(state: State<AppState>) -> Result<bool, String> {
+    state.click_through.lock()
+        .map(|guard| *guard)
+        .map_err(|e| format!("Failed to get click-through state: {}", e))
 }
 
 #[tauri::command]
-fn set_click_through(window: Window, state: State<AppState>, enabled: bool) {
-    let mut click_through = state.click_through.lock().unwrap();
-    
-    // Only change if different from current state
-    if *click_through == enabled {
-        drop(click_through);
-        return;
+fn set_click_through(window: Window, state: State<AppState>, enabled: bool) -> Result<(), String> {
+    // Check current state
+    {
+        let click_through = state.click_through.lock()
+            .map_err(|e| format!("Failed to lock click_through state: {}", e))?;
+        
+        if *click_through == enabled {
+            return Ok(()); // No change needed
+        }
     }
     
-    *click_through = enabled;
-    drop(click_through);
+    // Update state
+    {
+        let mut click_through = state.click_through.lock()
+            .map_err(|e| format!("Failed to lock click_through state: {}", e))?;
+        *click_through = enabled;
+    }
 
     println!("Set click-through to: {}", enabled);
 
     // Enable/disable global mouse tracking
-    let mut tracking = state.mouse_tracking.lock().unwrap();
-    *tracking = enabled;
-    drop(tracking);
+    {
+        let mut tracking = state.mouse_tracking.lock()
+            .map_err(|e| format!("Failed to lock mouse_tracking state: {}", e))?;
+        *tracking = enabled;
+    }
     
     #[cfg(target_os = "windows")]
     {
@@ -45,7 +55,9 @@ fn set_click_through(window: Window, state: State<AppState>, enabled: bool) {
             GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT, WS_EX_LAYERED,
         };
 
-        let hwnd = HWND(window.hwnd().unwrap().0 as isize);
+        let hwnd = HWND(window.hwnd()
+            .map_err(|e| format!("Failed to get window handle: {}", e))?.0 as isize);
+        
         unsafe {
             let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             
@@ -65,36 +77,38 @@ fn set_click_through(window: Window, state: State<AppState>, enabled: bool) {
         use cocoa::appkit::NSWindow;
         use cocoa::base::id;
 
-        let ns_window = window.ns_window().unwrap() as id;
+        let ns_window = window.ns_window()
+            .map_err(|e| format!("Failed to get NSWindow: {}", e))? as id;
+        
         unsafe {
             ns_window.setIgnoresMouseEvents_(enabled);
+            println!("macOS click-through set to: {}", if enabled { "ENABLED" } else { "DISABLED" });
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        if let Err(e) = window.set_ignore_cursor_events(enabled) {
-            eprintln!("Failed to set ignore cursor events: {}", e);
-        }
+        window.set_ignore_cursor_events(enabled)
+            .map_err(|e| format!("Failed to set ignore cursor events: {}", e))?;
+        println!("Linux click-through set to: {}", if enabled { "ENABLED" } else { "DISABLED" });
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
-        if let Err(e) = window.set_ignore_cursor_events(enabled) {
-            eprintln!("Failed to set ignore cursor events: {}", e);
-        }
+        window.set_ignore_cursor_events(enabled)
+            .map_err(|e| format!("Failed to set ignore cursor events: {}", e))?;
     }
 
     // Update tray menu text
-    if let Err(e) = window.app_handle().tray_handle().get_item("toggle_click_through")
-        .set_title(if enabled { "Disable Click-Through" } else { "Enable Click-Through" }) {
-        eprintln!("Failed to update tray menu: {}", e);
-    }
+    window.app_handle().tray_handle().get_item("toggle_click_through")
+        .set_title(if enabled { "Disable Click-Through" } else { "Enable Click-Through" })
+        .map_err(|e| format!("Failed to update tray menu: {}", e))?;
 
     // Notify frontend
-    if let Err(e) = window.emit("click-through-changed", enabled) {
-        eprintln!("Failed to emit event: {}", e);
-    }
+    window.emit("click-through-changed", enabled)
+        .map_err(|e| format!("Failed to emit event: {}", e))?;
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -102,28 +116,59 @@ fn check_overlay_permission() -> bool {
     #[cfg(target_os = "android")]
     {
         // On Android, check SYSTEM_ALERT_WINDOW permission
-        // This is a placeholder - actual implementation would use JNI
-        true
+        // Note: Requires JNI bridge implementation in Android-specific code
+        use std::process::Command;
+        
+        // Try to check via ADB if available (development mode)
+        match Command::new("adb")
+            .args(&["shell", "appops", "get", "com.magiccursor.app", "SYSTEM_ALERT_WINDOW"])
+            .output()
+        {
+            Ok(output) => {
+                let result = String::from_utf8_lossy(&output.stdout);
+                result.contains("allow")
+            }
+            Err(_) => {
+                // Assume permission is granted if we can't check
+                println!("Cannot check overlay permission, assuming granted");
+                true
+            }
+        }
     }
     
     #[cfg(not(target_os = "android"))]
     {
+        // Desktop platforms don't require overlay permissions
         true
     }
 }
 
 #[tauri::command]
-fn request_overlay_permission() {
+fn request_overlay_permission(app_handle: AppHandle) {
     #[cfg(target_os = "android")]
     {
         // On Android, request SYSTEM_ALERT_WINDOW permission
-        // This would use JNI to call Android's Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+        // This requires opening Android Settings
         println!("Requesting overlay permission on Android");
+        
+        // Emit event to frontend to handle via Capacitor/Cordova plugin
+        if let Some(window) = app_handle.get_window("main") {
+            let _ = window.emit("request-overlay-permission", ());
+        }
+        
+        // Alternative: Use JNI to directly open settings
+        // This would require platform-specific code in src-tauri/gen/android/
+        // Example intent: android.settings.action.MANAGE_OVERLAY_PERMISSION
+    }
+    
+    #[cfg(not(target_os = "android"))]
+    {
+        println!("Overlay permission not required on this platform");
     }
 }
 
 #[tauri::command]
-fn toggle_fullscreen(window: Window) {
+fn toggle_fullscreen(window: Window) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::HWND;
@@ -132,7 +177,9 @@ fn toggle_fullscreen(window: Window) {
         };
         use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
 
-        let hwnd = HWND(window.hwnd().unwrap().0 as isize);
+        let hwnd = HWND(window.hwnd()
+            .map_err(|e| format!("Failed to get window handle: {}", e))?.0 as isize);
+        
         unsafe {
             // Get monitor info
             let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
@@ -140,12 +187,14 @@ fn toggle_fullscreen(window: Window) {
                 cbSize: std::mem::size_of::<MONITORINFO>() as u32,
                 ..Default::default()
             };
-            GetMonitorInfoW(monitor, &mut monitor_info);
+            
+            if !GetMonitorInfoW(monitor, &mut monitor_info).as_bool() {
+                return Err("Failed to get monitor info".to_string());
+            }
 
             // Position window to cover entire monitor including taskbar
-            // Don't change window style - keep it transparent and borderless
             let rect = monitor_info.rcMonitor;
-            let _ = SetWindowPos(
+            SetWindowPos(
                 hwnd,
                 HWND_TOPMOST,
                 rect.left,
@@ -153,14 +202,17 @@ fn toggle_fullscreen(window: Window) {
                 rect.right - rect.left,
                 rect.bottom - rect.top,
                 SWP_NOZORDER,
-            );
+            ).map_err(|e| format!("Failed to set window position: {}", e))?;
         }
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = window.set_fullscreen(true);
+        window.set_fullscreen(true)
+            .map_err(|e| format!("Failed to set fullscreen: {}", e))?;
     }
+    
+    Ok(())
 }
 
 fn main() {
@@ -168,7 +220,7 @@ fn main() {
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
     let hide = CustomMenuItem::new("hide".to_string(), "Hide");
     let show = CustomMenuItem::new("show".to_string(), "Show");
-    let toggle_click_through_item = CustomMenuItem::new("toggle_click_through".to_string(), "Disable Click-Through"); // Default is enabled
+    let toggle_click_through_item = CustomMenuItem::new("toggle_click_through".to_string(), "Disable Click-Through");
     let color_presets = CustomMenuItem::new("color_presets".to_string(), "Color Presets");
     let theme_customizer = CustomMenuItem::new("theme_customizer".to_string(), "Theme Customizer");
     let settings = CustomMenuItem::new("settings".to_string(), "Settings");
@@ -187,44 +239,28 @@ fn main() {
         .add_item(quit);
 
     let system_tray = SystemTray::new().with_menu(tray_menu);
-
-    let mouse_tracking = Arc::new(Mutex::new(true)); // Start with tracking enabled
+    let mouse_tracking = Arc::new(Mutex::new(true));
     
     tauri::Builder::default()
         .manage(AppState {
-            click_through: Mutex::new(true), // Click-through ON by default
+            click_through: Mutex::new(true),
             mouse_tracking: mouse_tracking.clone(),
         })
         .system_tray(system_tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::MenuItemClick { id, .. } => {
-                let window = app.get_window("main").unwrap();
-                match id.as_str() {
-                    "quit" => {
-                        std::process::exit(0);
+                if let Some(window) = app.get_window("main") {
+                    match id.as_str() {
+                        "quit" => std::process::exit(0),
+                        "hide" => { let _ = window.hide(); }
+                        "show" => { let _ = window.show(); }
+                        "toggle_click_through" => toggle_click_through_fn(&window, app.state()),
+                        "color_presets" => { let _ = window.emit("open-color-presets", ()); }
+                        "theme_customizer" => { let _ = window.emit("open-theme-customizer", ()); }
+                        "settings" => { let _ = window.emit("open-settings", ()); }
+                        "welcome" => { let _ = window.emit("open-welcome", ()); }
+                        _ => {}
                     }
-                    "hide" => {
-                        window.hide().unwrap();
-                    }
-                    "show" => {
-                        window.show().unwrap();
-                    }
-                    "toggle_click_through" => {
-                        toggle_click_through_fn(&window, app.state());
-                    }
-                    "color_presets" => {
-                        window.emit("open-color-presets", {}).unwrap();
-                    }
-                    "theme_customizer" => {
-                        window.emit("open-theme-customizer", {}).unwrap();
-                    }
-                    "settings" => {
-                        window.emit("open-settings", {}).unwrap();
-                    }
-                    "welcome" => {
-                        window.emit("open-welcome", {}).unwrap();
-                    }
-                    _ => {}
                 }
             }
             _ => {}
@@ -242,15 +278,15 @@ fn main() {
             let state: State<AppState> = app.state();
             let mouse_tracking = state.mouse_tracking.clone();
             
-            // Start global mouse tracking thread for Windows and Linux
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            // Start global mouse tracking thread
+            #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             {
                 thread::spawn(move || {
                     start_mouse_tracking(app_handle, mouse_tracking);
                 });
             }
             
-            // On Windows, setup window to overlay everything including taskbar and Start menu
+            // Windows-specific setup
             #[cfg(target_os = "windows")]
             {
                 use windows::Win32::Foundation::HWND;
@@ -263,7 +299,6 @@ fn main() {
 
                 let hwnd = HWND(window.hwnd().unwrap().0 as isize);
                 unsafe {
-                    // Get primary monitor info
                     let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
                     let mut monitor_info = MONITORINFO {
                         cbSize: std::mem::size_of::<MONITORINFO>() as u32,
@@ -271,18 +306,16 @@ fn main() {
                     };
                     GetMonitorInfoW(monitor, &mut monitor_info);
 
-                    // Set extended window styles for overlay behavior
                     let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
                     let new_style = ex_style 
-                        | WS_EX_LAYERED.0 as isize      // Required for transparency and click-through
-                        | WS_EX_TRANSPARENT.0 as isize  // Click-through enabled by default
-                        | WS_EX_TOOLWINDOW.0 as isize   // Prevents taskbar button, helps overlay taskbar
-                        | WS_EX_NOACTIVATE.0 as isize;  // Never activates, stays in background
+                        | WS_EX_LAYERED.0 as isize
+                        | WS_EX_TRANSPARENT.0 as isize
+                        | WS_EX_TOOLWINDOW.0 as isize
+                        | WS_EX_NOACTIVATE.0 as isize;
                     
                     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
                     println!("Initial window style set to: 0x{:X}", new_style);
 
-                    // Position to cover entire monitor including taskbar
                     let rect = monitor_info.rcMonitor;
                     let _ = SetWindowPos(
                         hwnd,
@@ -294,7 +327,7 @@ fn main() {
                         SWP_SHOWWINDOW | SWP_NOACTIVATE,
                     );
                     
-                    println!("Window positioned over entire screen including taskbar");
+                    println!("Window positioned over entire screen");
                 }
             }
 
@@ -310,17 +343,23 @@ fn start_mouse_tracking(app_handle: AppHandle, tracking_enabled: Arc<Mutex<bool>
     use windows::Win32::Foundation::POINT;
     use std::time::Duration;
     
-    // Cache screen dimensions (they rarely change)
     let (screen_width, screen_height) = unsafe {
         (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))
     };
     
     loop {
-        thread::sleep(Duration::from_millis(16)); // ~60 FPS
+        thread::sleep(Duration::from_millis(16));
         
-        let is_tracking = *tracking_enabled.lock().unwrap();
+        let is_tracking = match tracking_enabled.lock() {
+            Ok(guard) => *guard,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+        };
+        
         if !is_tracking {
-            thread::sleep(Duration::from_millis(100)); // Sleep longer when not tracking
+            thread::sleep(Duration::from_millis(100));
             continue;
         }
         
@@ -345,24 +384,54 @@ fn start_mouse_tracking(app_handle: AppHandle, tracking_enabled: Arc<Mutex<bool>
     use std::time::Duration;
     use std::process::Command;
     
+    let has_xdotool = Command::new("which")
+        .arg("xdotool")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    
+    if !has_xdotool {
+        eprintln!("Warning: xdotool not found. Mouse tracking disabled.");
+        eprintln!("Install with: sudo apt-get install xdotool");
+        return;
+    }
+    
+    let (mut screen_width, mut screen_height) = (1920, 1080);
+    if let Ok(output) = Command::new("xdpyinfo").output() {
+        if let Ok(info) = String::from_utf8(output.stdout) {
+            for line in info.lines() {
+                if line.contains("dimensions:") {
+                    if let Some(dims) = line.split_whitespace().nth(1) {
+                        if let Some((w, h)) = dims.split_once('x') {
+                            screen_width = w.parse().unwrap_or(1920);
+                            screen_height = h.parse().unwrap_or(1080);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
     loop {
-        thread::sleep(Duration::from_millis(16)); // ~60 FPS
+        thread::sleep(Duration::from_millis(16));
         
-        let is_tracking = *tracking_enabled.lock().unwrap();
+        let is_tracking = match tracking_enabled.lock() {
+            Ok(guard) => *guard,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+        };
+        
         if !is_tracking {
+            thread::sleep(Duration::from_millis(100));
             continue;
         }
         
-        // Use xdotool to get mouse position on Linux
-        if let Ok(output) = Command::new("xdotool")
-            .args(&["getmouselocation", "--shell"])
-            .output() 
-        {
+        if let Ok(output) = Command::new("xdotool").args(&["getmouselocation", "--shell"]).output() {
             if let Ok(result) = String::from_utf8(output.stdout) {
-                let mut x = 0;
-                let mut y = 0;
-                let mut screen_width = 1920;
-                let mut screen_height = 1080;
+                let (mut x, mut y) = (0, 0);
                 
                 for line in result.lines() {
                     if let Some((key, value)) = line.split_once('=') {
@@ -370,25 +439,6 @@ fn start_mouse_tracking(app_handle: AppHandle, tracking_enabled: Arc<Mutex<bool>
                             "X" => x = value.parse().unwrap_or(0),
                             "Y" => y = value.parse().unwrap_or(0),
                             _ => {}
-                        }
-                    }
-                }
-                
-                // Get screen dimensions
-                if let Ok(screen_output) = Command::new("xdpyinfo")
-                    .output()
-                {
-                    if let Ok(screen_info) = String::from_utf8(screen_output.stdout) {
-                        for line in screen_info.lines() {
-                            if line.contains("dimensions:") {
-                                if let Some(dims) = line.split_whitespace().nth(1) {
-                                    if let Some((w, h)) = dims.split_once('x') {
-                                        screen_width = w.parse().unwrap_or(1920);
-                                        screen_height = h.parse().unwrap_or(1080);
-                                    }
-                                }
-                                break;
-                            }
                         }
                     }
                 }
@@ -406,18 +456,70 @@ fn start_mouse_tracking(app_handle: AppHandle, tracking_enabled: Arc<Mutex<bool>
     }
 }
 
+#[cfg(target_os = "macos")]
+fn start_mouse_tracking(app_handle: AppHandle, tracking_enabled: Arc<Mutex<bool>>) {
+    use std::time::Duration;
+    use cocoa::appkit::NSEvent;
+    use cocoa::foundation::NSPoint;
+    
+    loop {
+        thread::sleep(Duration::from_millis(16));
+        
+        let is_tracking = match tracking_enabled.lock() {
+            Ok(guard) => *guard,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+        };
+        
+        if !is_tracking {
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
+        
+        unsafe {
+            let mouse_location: NSPoint = NSEvent::mouseLocation();
+            let screen_width = 1920;
+            let screen_height = 1080;
+            
+            if let Some(window) = app_handle.get_window("main") {
+                let _ = window.emit("global-mouse-move", serde_json::json!({
+                    "x": mouse_location.x as i32,
+                    "y": (screen_height as f64 - mouse_location.y) as i32,
+                    "screenWidth": screen_width,
+                    "screenHeight": screen_height,
+                }));
+            }
+        }
+    }
+}
+
 fn toggle_click_through_fn(window: &Window, state: State<AppState>) {
-    let mut click_through = state.click_through.lock().unwrap();
-    *click_through = !*click_through;
-    let is_enabled = *click_through;
-    drop(click_through);
+    let is_enabled = {
+        let mut click_through = match state.click_through.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock click_through: {}", e);
+                return;
+            }
+        };
+        *click_through = !*click_through;
+        *click_through
+    };
 
     println!("Toggle click-through: {}", is_enabled);
 
-    // Enable/disable global mouse tracking
-    let mut tracking = state.mouse_tracking.lock().unwrap();
-    *tracking = is_enabled;
-    drop(tracking);
+    {
+        let mut tracking = match state.mouse_tracking.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock mouse_tracking: {}", e);
+                return;
+            }
+        };
+        *tracking = is_enabled;
+    }
     
     #[cfg(target_os = "windows")]
     {
@@ -426,25 +528,19 @@ fn toggle_click_through_fn(window: &Window, state: State<AppState>) {
             GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT, WS_EX_LAYERED,
         };
 
-        let hwnd = HWND(window.hwnd().unwrap().0 as isize);
-        unsafe {
-            let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            println!("Current ex_style: 0x{:X}", ex_style);
-            
-            // CRITICAL: Must have WS_EX_LAYERED for WS_EX_TRANSPARENT to work!
-            let new_style = if is_enabled {
-                ex_style | WS_EX_LAYERED.0 as isize | WS_EX_TRANSPARENT.0 as isize
-            } else {
-                ex_style & !(WS_EX_TRANSPARENT.0 as isize)
-            };
-            
-            println!("Setting ex_style to: 0x{:X}", new_style);
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
-            
-            // Verify it was set
-            let verify_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            println!("Verified ex_style: 0x{:X}", verify_style);
-            println!("Click-through is now: {}", if is_enabled { "ENABLED" } else { "DISABLED" });
+        if let Ok(hwnd_wrapper) = window.hwnd() {
+            let hwnd = HWND(hwnd_wrapper.0 as isize);
+            unsafe {
+                let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+                let new_style = if is_enabled {
+                    ex_style | WS_EX_LAYERED.0 as isize | WS_EX_TRANSPARENT.0 as isize
+                } else {
+                    ex_style & !(WS_EX_TRANSPARENT.0 as isize)
+                };
+                
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
+                println!("Click-through: {}", if is_enabled { "ENABLED" } else { "DISABLED" });
+            }
         }
     }
 
@@ -453,37 +549,21 @@ fn toggle_click_through_fn(window: &Window, state: State<AppState>) {
         use cocoa::appkit::NSWindow;
         use cocoa::base::id;
 
-        let ns_window = window.ns_window().unwrap() as id;
-        unsafe {
-            ns_window.setIgnoresMouseEvents_(is_enabled);
+        if let Ok(ns_window_ptr) = window.ns_window() {
+            let ns_window = ns_window_ptr as id;
+            unsafe {
+                ns_window.setIgnoresMouseEvents_(is_enabled);
+            }
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        // On Linux (X11/Wayland), use Tauri's built-in API
-        if let Err(e) = window.set_ignore_cursor_events(is_enabled) {
-            eprintln!("Failed to set ignore cursor events: {}", e);
-        } else {
-            println!("Linux click-through is now: {}", if is_enabled { "ENABLED" } else { "DISABLED" });
-        }
+        let _ = window.set_ignore_cursor_events(is_enabled);
     }
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        if let Err(e) = window.set_ignore_cursor_events(is_enabled) {
-            eprintln!("Failed to set ignore cursor events: {}", e);
-        }
-    }
+    let _ = window.app_handle().tray_handle().get_item("toggle_click_through")
+        .set_title(if is_enabled { "Disable Click-Through" } else { "Enable Click-Through" });
 
-    // Update tray menu text
-    if let Err(e) = window.app_handle().tray_handle().get_item("toggle_click_through")
-        .set_title(if is_enabled { "Disable Click-Through" } else { "Enable Click-Through" }) {
-        eprintln!("Failed to update tray menu: {}", e);
-    }
-
-    // Notify frontend
-    if let Err(e) = window.emit("click-through-changed", is_enabled) {
-        eprintln!("Failed to emit event: {}", e);
-    }
+    let _ = window.emit("click-through-changed", is_enabled);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import './Welcome.css';
 
 interface WelcomeProps {
@@ -9,21 +9,35 @@ export default function Welcome({ onComplete }: WelcomeProps): JSX.Element | nul
   const [show, setShow] = useState(true);
   const [stage, setStage] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
+  const timersRef = useRef<number[]>([]);
+  const fadeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setStage(1), 500),
-      setTimeout(() => setStage(2), 1500),
-      setTimeout(() => setStage(3), 2500),
+    let isMounted = true;
+
+    timersRef.current = [
+      setTimeout(() => {
+        if (isMounted) setStage(1);
+      }, 500),
+      setTimeout(() => {
+        if (isMounted) setStage(2);
+      }, 1500),
+      setTimeout(() => {
+        if (isMounted) setStage(3);
+      }, 2500),
     ];
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      isMounted = false;
+      timersRef.current.forEach(clearTimeout);
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+    };
   }, []);
 
   const handleClick = (): void => {
     if (stage >= 3) {
       setFadeOut(true);
-      setTimeout(() => {
+      fadeTimeoutRef.current = setTimeout(() => {
         setShow(false);
         onComplete();
       }, 800);
